@@ -437,6 +437,81 @@ input[type=range]::-moz-range-thumb {
   .kpi-strip { grid-template-columns: repeat(2, 1fr); }
   .controls { position: static; }
 }
+
+/* ── Mode tabs ── */
+.mode-bar {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 6px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.mode-tab {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 8px 22px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.mode-tab.active {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--dim);
+  box-shadow: 0 1px 6px rgba(0,0,0,0.35);
+}
+
+/* ── Winner card ── */
+.winner-card {
+  border-radius: 8px;
+  padding: 14px 18px;
+}
+.winner-card.buy-wins  { background: var(--blue-glow);  border: 1px solid rgba(91,156,246,0.22); }
+.winner-card.rent-wins { background: var(--amber-glow); border: 1px solid rgba(240,165,0,0.22); }
+
+.winner-eyebrow {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.winner-headline {
+  font-family: var(--mono);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.winner-card.buy-wins  .winner-headline { color: var(--blue); }
+.winner-card.rent-wins .winner-headline { color: var(--amber); }
+.winner-sub {
+  margin-top: 4px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+}
+
+/* ── RvB mortgage summary box ── */
+.rvb-loan-summary {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 2;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin-bottom: 14px;
+}
+.rvb-loan-summary span { color: var(--text); font-weight: 600; }
 </style>
 </head>
 <body>
@@ -451,8 +526,14 @@ input[type=range]::-moz-range-thumb {
     <div class="header-sub">Adjust variables · see payoff · drag overpayment to accelerate</div>
   </div>
 
+  <!-- Mode tabs -->
+  <div class="mode-bar">
+    <button class="mode-tab active" onclick="setMode('mortgage')">Mortgage</button>
+    <button class="mode-tab" onclick="setMode('rvb')">Rent vs. Buy</button>
+  </div>
+
   <!-- LEFT: Controls -->
-  <div class="controls">
+  <div class="controls" id="mortgage-controls">
 
     <div class="ctrl-section-title">Loan</div>
 
@@ -608,7 +689,7 @@ input[type=range]::-moz-range-thumb {
   </div>
 
   <!-- RIGHT -->
-  <div class="right-col">
+  <div class="right-col" id="mortgage-right">
 
     <!-- KPIs -->
     <div class="kpi-strip">
@@ -706,6 +787,174 @@ input[type=range]::-moz-range-thumb {
     </div>
 
   </div>
+
+  <!-- ══════════════════════════════════════════
+       RvB LEFT CONTROLS
+       ══════════════════════════════════════════ -->
+  <div class="controls" id="rvb-controls" style="display:none">
+
+    <div class="ctrl-section-title">Loan summary</div>
+    <div class="rvb-loan-summary" id="rvb-loan-summary">—</div>
+
+    <div class="divider"></div>
+    <div class="ctrl-section-title">Rental</div>
+
+    <div class="slider-group">
+      <div class="slider-header">
+        <span class="slider-label">Monthly rent <button class="info-btn" data-tip="rvb-rent">?</button></span>
+        <span class="slider-value" id="val-rent">$1,800</span>
+      </div>
+      <input type="range" id="sl-rent" min="500" max="5000" step="50" value="1800">
+    </div>
+
+    <div class="slider-group">
+      <div class="slider-header">
+        <span class="slider-label">Annual rent increase</span>
+        <span class="slider-value" id="val-rent-increase">3.0%</span>
+      </div>
+      <input type="range" id="sl-rent-increase" min="0" max="8" step="0.25" value="3.0">
+    </div>
+
+    <div class="divider"></div>
+    <div class="ctrl-section-title">Investment</div>
+
+    <div class="slider-group">
+      <div class="slider-header">
+        <span class="slider-label">ETF annual return <button class="info-btn" data-tip="etf-return">?</button></span>
+        <span class="slider-value" id="val-etf">7.0%</span>
+      </div>
+      <div class="slider-wrap">
+        <input type="range" id="sl-etf" min="3" max="15" step="0.25" value="7.0">
+        <div class="pip-track" id="pip-track-etf"></div>
+      </div>
+    </div>
+
+    <div class="slider-group">
+      <div class="slider-header">
+        <span class="slider-label">Monthly contribution <button class="info-btn" data-tip="rvb-contribution">?</button></span>
+        <span class="slider-value" id="val-contribution">$0</span>
+      </div>
+      <div class="slider-wrap">
+        <input type="range" class="overpay" id="sl-contribution" min="0" max="5000" step="50" value="0">
+        <div class="pip-track" id="pip-track-contribution"></div>
+      </div>
+      <div style="text-align:right;font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px">
+        auto (PITI − rent): <span id="val-contribution-auto">—</span>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="ctrl-section-title">Horizon</div>
+
+    <div class="slider-group" style="margin-bottom:0">
+      <div class="slider-header">
+        <span class="slider-label">Time horizon <button class="info-btn" data-tip="rvb-horizon">?</button></span>
+        <span class="slider-value" id="val-horizon">10 yrs</span>
+      </div>
+      <div class="slider-wrap">
+        <input type="range" id="sl-horizon" min="5" max="30" step="1" value="10">
+        <div class="pip-track" id="pip-track-horizon"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       RvB RIGHT COLUMN
+       ══════════════════════════════════════════ -->
+  <div class="right-col" id="rvb-right" style="display:none">
+
+    <!-- Winner card -->
+    <div id="winner-card" class="winner-card buy-wins">
+      <div class="winner-eyebrow" id="winner-eyebrow">—</div>
+      <div class="winner-headline" id="winner-headline">—</div>
+      <div class="winner-sub" id="winner-sub">—</div>
+    </div>
+
+    <!-- KPI strip -->
+    <div class="kpi-strip">
+      <div class="kpi base">
+        <div class="kpi-label">Buy wealth</div>
+        <div class="kpi-value" id="rvb-buy-wealth">—</div>
+        <div class="kpi-sub">at horizon</div>
+      </div>
+      <div class="kpi over">
+        <div class="kpi-label">Rent+Invest wealth</div>
+        <div class="kpi-value" id="rvb-rent-wealth">—</div>
+        <div class="kpi-sub">at horizon</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Break-even <button class="info-btn" data-tip="rvb-crossover">?</button></div>
+        <div class="kpi-value" id="rvb-crossover" style="color:var(--green)">—</div>
+        <div class="kpi-sub">buy overtakes</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Monthly delta <button class="info-btn" data-tip="rvb-delta">?</button></div>
+        <div class="kpi-value" id="rvb-delta">—</div>
+        <div class="kpi-sub" id="rvb-delta-sub">PITI vs rent</div>
+      </div>
+    </div>
+
+    <!-- Chart -->
+    <div class="chart-panel">
+      <div class="chart-header">
+        <div class="chart-title">WEALTH TRAJECTORY <button class="info-btn" data-tip="rvb-chart">?</button></div>
+      </div>
+      <canvas id="rvbChart" height="260"></canvas>
+    </div>
+
+    <!-- Comparison table -->
+    <div class="summary-panel">
+      <div class="sum-title">Scenario comparison · year <span id="rvb-horizon-label">10</span></div>
+      <div class="sum-row header">
+        <div class="cell" style="text-align:left">Item</div>
+        <div class="cell" style="color:var(--blue);opacity:.8">Buy</div>
+        <div class="cell" style="color:var(--amber);opacity:.8">Rent+Invest</div>
+      </div>
+      <div class="sum-row">
+        <div class="row-label">Capital deployed</div>
+        <div class="cell base-cell" id="rvb-t-buy-capital">—</div>
+        <div class="cell over-cell" id="rvb-t-rent-capital">—</div>
+      </div>
+      <div class="sum-row">
+        <div class="row-label">Monthly housing (yr 1)</div>
+        <div class="cell base-cell" id="rvb-t-buy-housing">—</div>
+        <div class="cell over-cell" id="rvb-t-rent-housing">—</div>
+      </div>
+      <div class="sum-row">
+        <div class="row-label">Monthly invested</div>
+        <div class="cell base-cell">—</div>
+        <div class="cell over-cell" id="rvb-t-contrib">—</div>
+      </div>
+      <div class="sum-row">
+        <div class="row-label">Home value at horizon</div>
+        <div class="cell base-cell" id="rvb-t-homeval">—</div>
+        <div class="cell over-cell">—</div>
+      </div>
+      <div class="sum-row">
+        <div class="row-label">Remaining loan balance</div>
+        <div class="cell base-cell" id="rvb-t-balance">—</div>
+        <div class="cell over-cell">—</div>
+      </div>
+      <div class="sum-row">
+        <div class="row-label">Selling costs (6%)</div>
+        <div class="cell base-cell" id="rvb-t-selling">—</div>
+        <div class="cell over-cell">—</div>
+      </div>
+      <div class="sum-row">
+        <div class="row-label">ETF portfolio value</div>
+        <div class="cell base-cell">—</div>
+        <div class="cell over-cell" id="rvb-t-portfolio">—</div>
+      </div>
+      <div class="sum-row total">
+        <div class="row-label">Terminal wealth</div>
+        <div class="cell base-cell" id="rvb-t-buy-total">—</div>
+        <div class="cell over-cell" id="rvb-t-rent-total">—</div>
+      </div>
+    </div>
+
+  </div>
+
 </div>
 
 <script>
@@ -736,7 +985,14 @@ const TIPS = {
   'total-interest': { title: 'Total Interest Over Loan Life', body: 'The full cost of borrowing. On a $275k loan at 6.49% over 30 years, you pay roughly $340k in interest on top of the $275k principal — you\'re paying for the house nearly twice. Overpayment attacks this directly.' },
   'other-debt': { title: 'Other Monthly Debt', body: 'All non-housing debt payments: car loans, student loans, credit card minimums, personal loans. Lenders include these in your back-end DTI. Paying off a $500/mo car loan has the same DTI effect as earning ~$1,400 more per month (at a 36% DTI threshold). Defaults to $2,000/mo based on your earlier inputs.' },
   'income-slider': { title: 'Monthly Gross Income', body: 'Your total household income before taxes. This drives the DTI calculation. Raising income is the fastest way to improve DTI — a raise, a second income, or paid-off debt all shift this needle.' },
-  dti: { title: 'Back-End DTI', body: 'Total monthly debt ÷ gross monthly income. Includes P&I + tax/insurance + your other monthly debt vs. gross monthly income.<br><br><strong style="color:#34c77b">Green &lt;36%:</strong> Comfortable<br><strong style="color:#f0a500">Amber 36–45%:</strong> Qualifying range<br><strong style="color:#e05c5c">Red &gt;45%:</strong> Likely disqualifying' }
+  dti: { title: 'Back-End DTI', body: 'Total monthly debt ÷ gross monthly income. Includes P&I + tax/insurance + your other monthly debt vs. gross monthly income.<br><br><strong style="color:#34c77b">Green &lt;36%:</strong> Comfortable<br><strong style="color:#f0a500">Amber 36–45%:</strong> Qualifying range<br><strong style="color:#e05c5c">Red &gt;45%:</strong> Likely disqualifying' },
+  'rvb-rent': { title: 'Monthly Rent', body: 'Current market rent for a comparable property. This is your starting rent — it increases annually at the rent increase rate. Providence/Pawtucket 2BR rents: ~$1,600–2,200/mo depending on neighborhood and condition.' },
+  'etf-return': { title: 'ETF Annual Return', body: 'Expected annual return on a diversified index fund.<br><br><strong>7% (conservative):</strong> Inflation-adjusted historical real return of the S&P 500 over long periods.<br><strong>10% (aggressive):</strong> Nominal historical average of the S&P 500. Does not account for taxes on dividends or capital gains.<br><br>Reality check: sequence of returns matters enormously over a 10-year horizon. A bad decade (2000–2010) returned ~0%. A good decade (2010–2020) returned ~14%.' },
+  'rvb-contribution': { title: 'Monthly Investment Contribution', body: 'The amount the renter invests each month in their ETF portfolio, on top of the down payment already invested.<br><br><strong>Auto (default):</strong> PITI minus rent — the cash the renter saves by paying lower monthly housing costs. If PITI &lt; rent, this defaults to $0.<br><br>You can override to model a fixed savings rate. Tap the "auto" pip to reset to the PITI−rent default.' },
+  'rvb-horizon': { title: 'Time Horizon', body: 'How many years you plan to hold the home (or compare the two paths). Break-even typically occurs somewhere between years 5–15 depending on appreciation, ETF returns, and rent growth. Shorter horizons usually favor renting; longer horizons favor buying.' },
+  'rvb-crossover': { title: 'Break-Even Year', body: 'The first year in which buying produces more terminal wealth than renting+investing. Before this year, renting wins. After it, buying wins.<br><br>If "outside horizon" — buying never overtakes within your selected time frame. Try increasing appreciation rate or decreasing ETF return to see how sensitive the crossover is.' },
+  'rvb-delta': { title: 'Monthly Cash Flow Delta', body: 'PITI (mortgage + tax + insurance) minus current rent. A positive number means buying costs more per month than renting. That gap, if invested by the renter, accelerates the rent+invest scenario — and is exactly what the auto contribution captures.' },
+  'rvb-chart': { title: 'Wealth Trajectory', body: 'Blue = net equity if you buy (home value − remaining loan − 6% selling costs). Amber = ETF portfolio value if you rent and invest.<br><br>Both lines start from the same point. The buyer starts with home equity minus selling costs; the renter starts with the down payment in their portfolio.<br><br>The green dashed line marks the break-even crossover year — where buying\'s wealth overtakes renting+investing.' }
 };
 
 // ── Tooltip logic ──
@@ -786,7 +1042,12 @@ const S = {
   proptax: 1.60, insurance: 175, maint: 500, hoa: 0, appr: 3.0,
   extra: 0, lump: 0,
   income: 12083, debt: 2000,
+  // Rent vs. Buy
+  rent: 1800, rentIncrease: 3.0, etf: 7.0, contribution: null, horizon: 10,
 };
+
+let currentMode = 'mortgage';
+let contributionManual = false;
 
 let currentView = 'balance';
 
@@ -828,8 +1089,12 @@ const sliderDefs = [
   { id: 'sl-appr',     key: 'appr',     fmt: v => parseFloat(v).toFixed(2) + '%' },
   { id: 'sl-extra',    key: 'extra',    fmt: v => v == 0 ? '$0' : fmtD(v) + '/mo' },
   { id: 'sl-lump',     key: 'lump',     fmt: v => v == 0 ? '$0' : fmtD(v) + '/yr' },
-  { id: 'sl-income',   key: 'income',   fmt: v => fmtD(v) + '/mo' },
-  { id: 'sl-debt',     key: 'debt',     fmt: v => v == 0 ? '$0' : fmtD(v) + '/mo' },
+  { id: 'sl-income',        key: 'income',      fmt: v => fmtD(v) + '/mo' },
+  { id: 'sl-debt',         key: 'debt',        fmt: v => v == 0 ? '$0' : fmtD(v) + '/mo' },
+  { id: 'sl-rent',         key: 'rent',        fmt: v => fmtD(v) + '/mo' },
+  { id: 'sl-rent-increase',key: 'rentIncrease',fmt: v => parseFloat(v).toFixed(2) + '%' },
+  { id: 'sl-etf',          key: 'etf',         fmt: v => parseFloat(v).toFixed(1) + '%' },
+  { id: 'sl-horizon',      key: 'horizon',     fmt: v => v + ' yrs' },
 ];
 
 sliderDefs.forEach(({ id, key, fmt }) => {
@@ -1259,6 +1524,300 @@ function updateChart(model) {
   chart.update('none');
 }
 
+// ── Contribution slider (manual override) ──
+document.getElementById('sl-contribution').addEventListener('input', () => {
+  contributionManual = true;
+  S.contribution = parseFloat(document.getElementById('sl-contribution').value);
+  document.getElementById('val-contribution').textContent = fmtD(S.contribution) + '/mo';
+  if (rvbChart) updateRVB();
+});
+
+// ── Mode switching ──
+function setMode(mode) {
+  currentMode = mode;
+  document.querySelectorAll('.mode-tab').forEach((t, i) => {
+    t.classList.toggle('active', ['mortgage','rvb'][i] === mode);
+  });
+  document.getElementById('mortgage-controls').style.display = mode === 'mortgage' ? '' : 'none';
+  document.getElementById('mortgage-right').style.display   = mode === 'mortgage' ? '' : 'none';
+  document.getElementById('rvb-controls').style.display     = mode === 'rvb' ? '' : 'none';
+  document.getElementById('rvb-right').style.display        = mode === 'rvb' ? '' : 'none';
+  if (mode === 'rvb') {
+    if (!rvbChart) {
+      const rvb = buildRVBModel();
+      initRVBChart(rvb);
+    }
+    updateRVB();
+  }
+}
+
+// ── RvB model ──
+function buildRVBModel() {
+  const { purchase, down, rate, term, proptax, insurance, appr, rent, rentIncrease, etf, horizon } = S;
+  const loan = Math.max(0, purchase - down);
+  const base = amortize(loan, rate, term * 12, 0, 0);
+  const pi = base.basePI;
+  const taxMo = purchase * proptax / 100 / 12;
+  const piti = pi + taxMo + insurance;
+
+  const autoContrib = Math.max(0, piti - rent);
+  const monthlyContrib = (contributionManual && S.contribution !== null) ? S.contribution : autoContrib;
+
+  const monthlyETF = etf / 100 / 12;
+  const horizonMonths = horizon * 12;
+  const labels = [];
+  const buyWealth = [];
+  const rentWealth = [];
+
+  // Year 0
+  labels.push('Yr 0');
+  const initHomeVal = purchase;
+  buyWealth.push(Math.round(initHomeVal - loan - initHomeVal * 0.06));
+  rentWealth.push(Math.round(down));
+
+  // Build month-by-month rent+invest, sample yearly
+  let portfolio = down;
+  for (let m = 1; m <= horizonMonths; m++) {
+    const rentThisMonth = rent * Math.pow(1 + rentIncrease / 100, (m - 1) / 12);
+    const contrib = (contributionManual && S.contribution !== null)
+      ? S.contribution
+      : Math.max(0, piti - rentThisMonth);
+    portfolio = portfolio * (1 + monthlyETF) + contrib;
+    if (m % 12 === 0) {
+      const y = m / 12;
+      labels.push('Yr ' + y);
+      const homeVal = purchase * Math.pow(1 + appr / 100, y);
+      const mi = Math.min(m - 1, base.months.length - 1);
+      const balance = mi >= 0 ? base.months[mi].balance : 0;
+      buyWealth.push(Math.round(homeVal - balance - homeVal * 0.06));
+      rentWealth.push(Math.round(portfolio));
+    }
+  }
+
+  // Break-even: first year buy > rent+invest
+  let crossoverYear = null;
+  for (let y = 0; y <= horizon; y++) {
+    if (buyWealth[y] > rentWealth[y]) { crossoverYear = y; break; }
+  }
+
+  const termHomeVal = purchase * Math.pow(1 + appr / 100, horizon);
+  const termMi = Math.min(horizonMonths - 1, base.months.length - 1);
+  const termBalance = termMi >= 0 ? base.months[termMi].balance : 0;
+  const termSellingCosts = termHomeVal * 0.06;
+
+  return {
+    labels, buyWealth, rentWealth, crossoverYear,
+    piti, pi, taxMo, rent, autoContrib, monthlyContrib,
+    monthlyDelta: piti - rent,
+    termBuyWealth: buyWealth[horizon],
+    termRentWealth: rentWealth[horizon],
+    termHomeVal, termBalance, termSellingCosts,
+    termPortfolio: rentWealth[horizon],
+    down, purchase,
+  };
+}
+
+// ── RvB pip helpers ──
+function buildETFPips() {
+  const track = document.getElementById('pip-track-etf');
+  if (!track) return;
+  track.innerHTML = '';
+  [{ val: 7.0, label: 'conservative' }, { val: 10.0, label: 'aggressive' }].forEach(p => {
+    const el = document.createElement('div');
+    el.className = 'pip amber';
+    el.style.left = pctToPos(p.val, 3, 15);
+    el.innerHTML = '<div class="pip-marker"></div><div class="pip-label">' + p.label + '</div>';
+    el.addEventListener('click', () => {
+      document.getElementById('sl-etf').value = p.val;
+      S.etf = p.val;
+      document.getElementById('val-etf').textContent = p.val.toFixed(1) + '%';
+      if (rvbChart) updateRVB();
+    });
+    track.appendChild(el);
+  });
+}
+
+function buildHorizonPips() {
+  const track = document.getElementById('pip-track-horizon');
+  if (!track) return;
+  track.innerHTML = '';
+  [5, 10, 15, 20, 30].forEach(y => {
+    const el = document.createElement('div');
+    el.className = 'pip';
+    el.style.left = pctToPos(y, 5, 30);
+    el.innerHTML = '<div class="pip-marker"></div><div class="pip-label">' + y + 'yr</div>';
+    el.addEventListener('click', () => {
+      document.getElementById('sl-horizon').value = y;
+      S.horizon = y;
+      document.getElementById('val-horizon').textContent = y + ' yrs';
+      if (rvbChart) updateRVB();
+    });
+    track.appendChild(el);
+  });
+}
+
+function updateContribPip(autoVal) {
+  const track = document.getElementById('pip-track-contribution');
+  if (!track) return;
+  track.innerHTML = '';
+  const sl = document.getElementById('sl-contribution');
+  const max = parseFloat(sl.max) || 5000;
+  if (autoVal <= 0 || autoVal > max) return;
+  const el = document.createElement('div');
+  el.className = 'pip amber';
+  el.style.left = pctToPos(autoVal, 0, max);
+  el.innerHTML = '<div class="pip-marker"></div><div class="pip-label">auto</div>';
+  el.addEventListener('click', () => {
+    contributionManual = false;
+    S.contribution = null;
+    updateRVB();
+  });
+  track.appendChild(el);
+}
+
+// ── RvB chart ──
+let rvbChart;
+
+const rvbCrossoverPlugin = {
+  id: 'rvbCrossover',
+  afterDraw(c) {
+    const yr = c.config._crossoverYear;
+    if (yr === null || yr === undefined) return;
+    const { ctx, scales: { x } } = c;
+    const xPos = x.getPixelForValue(yr);
+    ctx.save();
+    ctx.strokeStyle = '#34c77b';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 3]);
+    ctx.globalAlpha = 0.45;
+    ctx.beginPath();
+    ctx.moveTo(xPos, c.chartArea.top);
+    ctx.lineTo(xPos, c.chartArea.bottom);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 0.65;
+    ctx.fillStyle = '#34c77b';
+    ctx.font = '9px IBM Plex Mono';
+    ctx.fillText('break-even', xPos + 4, c.chartArea.top + 14);
+    ctx.restore();
+  }
+};
+
+const CHART_OPTS = {
+  responsive: true,
+  animation: { duration: 100 },
+  interaction: { mode: 'index', intersect: false },
+  plugins: {
+    legend: { labels: { color: '#505668', font: { family: 'IBM Plex Mono', size: 10 }, boxWidth: 12, padding: 14 } },
+    tooltip: {
+      backgroundColor: '#161926', borderColor: '#2a2f3e', borderWidth: 1,
+      titleColor: '#dde0ea', bodyColor: '#808898',
+      titleFont: { family: 'IBM Plex Mono', size: 11 }, bodyFont: { family: 'IBM Plex Mono', size: 11 }, padding: 10,
+      callbacks: { label: ctx => '  ' + ctx.dataset.label + ': $' + Math.round(ctx.parsed.y).toLocaleString() }
+    }
+  },
+  scales: {
+    x: { grid: { color: '#13161f' }, ticks: { color: '#2a2f3e', font: { family: 'IBM Plex Mono', size: 9 }, maxTicksLimit: 12 } },
+    y: { grid: { color: '#13161f' }, ticks: { color: '#2a2f3e', font: { family: 'IBM Plex Mono', size: 9 }, callback: v => '$' + Math.abs(v / 1000).toFixed(0) + 'k' } }
+  }
+};
+
+function initRVBChart(rvb) {
+  const ctx = document.getElementById('rvbChart').getContext('2d');
+  rvbChart = new Chart(ctx, {
+    type: 'line',
+    plugins: [rvbCrossoverPlugin],
+    data: {
+      labels: rvb.labels,
+      datasets: [
+        { label: 'Buy', data: rvb.buyWealth,  borderColor: '#5b9cf6', backgroundColor: 'rgba(91,156,246,0.06)', borderWidth: 2.5, pointRadius: 2, pointHoverRadius: 5, pointBackgroundColor: '#5b9cf6', fill: true, tension: 0.3 },
+        { label: 'Rent + Invest', data: rvb.rentWealth, borderColor: '#f0a500', backgroundColor: 'rgba(240,165,0,0.06)', borderWidth: 2.5, pointRadius: 2, pointHoverRadius: 5, pointBackgroundColor: '#f0a500', fill: true, tension: 0.3 },
+      ]
+    },
+    options: CHART_OPTS,
+  });
+  rvbChart.config._crossoverYear = rvb.crossoverYear;
+  buildETFPips();
+  buildHorizonPips();
+}
+
+// ── RvB update ──
+function updateRVB() {
+  const rvb = buildRVBModel();
+
+  // Auto-contribution sync
+  const autoEl = document.getElementById('val-contribution-auto');
+  if (autoEl) autoEl.textContent = fmtD(rvb.autoContrib) + '/mo';
+
+  if (!contributionManual) {
+    const sl = document.getElementById('sl-contribution');
+    const newMax = Math.max(5000, Math.round(rvb.autoContrib * 2.5 / 50) * 50);
+    sl.max = newMax;
+    sl.value = rvb.autoContrib;
+    document.getElementById('val-contribution').textContent = fmtD(rvb.autoContrib) + '/mo';
+    S.contribution = rvb.autoContrib;
+  }
+  updateContribPip(rvb.autoContrib);
+
+  // Loan summary
+  const loanEl = document.getElementById('rvb-loan-summary');
+  if (loanEl) {
+    const loan = Math.max(0, S.purchase - S.down);
+    loanEl.innerHTML =
+      `<span>${fmtD(S.purchase)}</span> purchase · <span>${fmtD(S.down)}</span> down<br>` +
+      `<span>${S.rate.toFixed(2)}%</span> · <span>${S.term}yr</span> · loan <span>${fmtD(loan)}</span><br>` +
+      `P&amp;I <span>${fmtD(rvb.pi)}</span>/mo · PITI <span>${fmtD(rvb.piti)}</span>/mo`;
+  }
+
+  // Winner card
+  const card = document.getElementById('winner-card');
+  const diff = Math.abs(rvb.termBuyWealth - rvb.termRentWealth);
+  const buyWins = rvb.termBuyWealth >= rvb.termRentWealth;
+  card.className = 'winner-card ' + (buyWins ? 'buy-wins' : 'rent-wins');
+  document.getElementById('winner-eyebrow').textContent = 'After ' + S.horizon + ' years —';
+  document.getElementById('winner-headline').textContent =
+    (buyWins ? 'Buying wins by ' : 'Renting wins by ') + fmtD(diff);
+  const crossMsg = rvb.crossoverYear === null
+    ? 'Buying does not overtake within ' + S.horizon + ' years'
+    : rvb.crossoverYear <= S.horizon
+      ? 'Buy overtakes rent+invest at year ' + rvb.crossoverYear
+      : 'Break-even at year ' + rvb.crossoverYear + ' (outside horizon)';
+  document.getElementById('winner-sub').textContent = crossMsg;
+
+  // KPIs
+  document.getElementById('rvb-buy-wealth').textContent  = fmtD(rvb.termBuyWealth);
+  document.getElementById('rvb-rent-wealth').textContent = fmtD(rvb.termRentWealth);
+  document.getElementById('rvb-crossover').textContent   = rvb.crossoverYear !== null ? 'Year ' + rvb.crossoverYear : '> ' + S.horizon + ' yr';
+  const deltaEl  = document.getElementById('rvb-delta');
+  const deltaAbs = Math.abs(rvb.monthlyDelta);
+  deltaEl.textContent = (rvb.monthlyDelta >= 0 ? '+' : '−') + fmtD(deltaAbs) + '/mo';
+  deltaEl.style.color = rvb.monthlyDelta > 0 ? 'var(--red)' : 'var(--green)';
+  document.getElementById('rvb-delta-sub').textContent = rvb.monthlyDelta > 0 ? 'buying costs more' : 'renting costs more';
+
+  // Table
+  document.getElementById('rvb-horizon-label').textContent  = S.horizon;
+  document.getElementById('rvb-t-buy-capital').textContent  = fmtD(S.purchase) + ' home';
+  document.getElementById('rvb-t-rent-capital').textContent = fmtD(S.down) + ' ETF';
+  document.getElementById('rvb-t-buy-housing').textContent  = fmtD(rvb.piti) + '/mo';
+  document.getElementById('rvb-t-rent-housing').textContent = fmtD(rvb.rent) + '/mo';
+  document.getElementById('rvb-t-contrib').textContent      = fmtD(rvb.monthlyContrib) + '/mo';
+  document.getElementById('rvb-t-homeval').textContent      = fmtD(rvb.termHomeVal);
+  document.getElementById('rvb-t-balance').textContent      = rvb.termBalance > 1 ? '−' + fmtD(rvb.termBalance) : '$0';
+  document.getElementById('rvb-t-selling').textContent      = '−' + fmtD(rvb.termSellingCosts);
+  document.getElementById('rvb-t-portfolio').textContent    = fmtD(rvb.termPortfolio);
+  document.getElementById('rvb-t-buy-total').textContent    = fmtD(rvb.termBuyWealth);
+  document.getElementById('rvb-t-rent-total').textContent   = fmtD(rvb.termRentWealth);
+
+  // Chart
+  if (rvbChart) {
+    rvbChart.data.labels          = rvb.labels;
+    rvbChart.data.datasets[0].data = rvb.buyWealth;
+    rvbChart.data.datasets[1].data = rvb.rentWealth;
+    rvbChart.config._crossoverYear = rvb.crossoverYear;
+    rvbChart.update('none');
+  }
+}
+
 // ── Main update ──
 function update() {
   const model = buildModel();
@@ -1322,6 +1881,7 @@ function update() {
 
   updateDynamicPips(model.pi, model.loan);
   if (chart) updateChart(model);
+  if (rvbChart) updateRVB();
 }
 
 // Init
