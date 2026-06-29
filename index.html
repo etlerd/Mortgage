@@ -1,0 +1,1334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mortgage Projector</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0a0c12;
+  --surface: #111420;
+  --surface2: #161926;
+  --border: #1c2130;
+  --text: #dde0ea;
+  --muted: #505668;
+  --dim: #2a2f3e;
+  --blue: #5b9cf6;
+  --blue-glow: rgba(91,156,246,0.12);
+  --amber: #f0a500;
+  --amber-glow: rgba(240,165,0,0.10);
+  --green: #34c77b;
+  --red: #e05c5c;
+  --mono: 'IBM Plex Mono', monospace;
+  --sans: 'IBM Plex Sans', sans-serif;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  min-height: 100vh;
+  padding: 28px 16px 60px;
+}
+
+.layout {
+  max-width: 1080px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 290px 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+/* ── Header ── */
+.page-header {
+  grid-column: 1 / -1;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 16px;
+  margin-bottom: 2px;
+}
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+h1 {
+  font-size: 26px;
+  font-weight: 300;
+  letter-spacing: -0.025em;
+  color: var(--text);
+  line-height: 1.1;
+}
+
+h1 em {
+  font-style: normal;
+  font-weight: 600;
+  color: var(--blue);
+}
+
+.header-sub {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  font-family: var(--mono);
+}
+
+/* ── Tooltip ── */
+.info-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--dim);
+  color: var(--muted);
+  font-size: 8px;
+  font-family: var(--mono);
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  vertical-align: middle;
+  margin-left: 4px;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.info-btn:hover, .info-btn.active { background: var(--blue); color: #fff; }
+
+.tooltip-popup {
+  display: none;
+  position: fixed;
+  z-index: 9999;
+  background: #161b2e;
+  border: 1px solid var(--blue);
+  border-radius: 8px;
+  padding: 14px 16px;
+  max-width: 280px;
+  font-size: 12px;
+  line-height: 1.65;
+  color: #b8bdd0;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+  pointer-events: none;
+}
+.tooltip-popup.visible { display: block; }
+.tooltip-popup .tip-title {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--blue);
+  margin-bottom: 7px;
+  display: block;
+}
+.tooltip-popup strong { color: var(--text); }
+
+/* ── Left panel ── */
+.controls {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 18px;
+  position: sticky;
+  top: 20px;
+}
+
+.ctrl-section-title {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+}
+
+.slider-group { margin-bottom: 14px; }
+.slider-group:last-child { margin-bottom: 0; }
+
+.slider-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+.slider-label {
+  font-size: 11px;
+  color: #8890a4;
+  display: flex;
+  align-items: center;
+}
+
+.slider-value {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  min-width: 78px;
+  text-align: right;
+}
+
+input[type=range] {
+  -webkit-appearance: none;
+  width: 100%; height: 3px;
+  background: var(--dim);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 13px; height: 13px;
+  border-radius: 50%;
+  background: var(--blue);
+  border: 2px solid var(--bg);
+  transition: transform 0.1s;
+}
+input[type=range]:hover::-webkit-slider-thumb { transform: scale(1.2); }
+input[type=range].overpay::-webkit-slider-thumb { background: var(--amber); }
+input[type=range]::-moz-range-thumb {
+  width: 13px; height: 13px;
+  border-radius: 50%;
+  background: var(--blue);
+  border: 2px solid var(--bg);
+}
+
+.divider { height: 1px; background: var(--border); margin: 16px 0; }
+
+/* ── Pip system ── */
+.slider-wrap { position: relative; }
+
+.pip-track {
+  position: relative;
+  width: 100%;
+  height: 14px;
+  margin-top: 4px;
+}
+
+.pip {
+  position: absolute;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pip-marker {
+  width: 1px;
+  height: 6px;
+  background: var(--muted);
+  transition: background 0.15s;
+}
+
+.pip-label {
+  font-family: var(--mono);
+  font-size: 8px;
+  color: var(--muted);
+  white-space: nowrap;
+  margin-top: 1px;
+  transition: color 0.15s;
+  letter-spacing: 0.04em;
+}
+
+.pip:hover .pip-marker { background: var(--blue); }
+.pip:hover .pip-label { color: var(--blue); }
+.pip.amber .pip-marker { background: rgba(240,165,0,0.5); }
+.pip.amber .pip-label { color: rgba(240,165,0,0.7); }
+.pip.amber:hover .pip-marker { background: var(--amber); }
+.pip.amber:hover .pip-label { color: var(--amber); }
+
+
+/* Overpay section highlight */
+.overpay-section {
+  background: var(--amber-glow);
+  border: 1px solid rgba(240,165,0,0.15);
+  border-radius: 6px;
+  padding: 14px;
+  margin-top: 16px;
+}
+
+.overpay-section .ctrl-section-title { color: var(--amber); }
+.overpay-section .slider-value { color: var(--amber); }
+.overpay-section .slider-label { color: #a09070; }
+
+/* ── Right column ── */
+.right-col { display: flex; flex-direction: column; gap: 14px; }
+
+/* ── KPI strip ── */
+.kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.kpi {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 14px;
+}
+
+.kpi-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+}
+
+.kpi-value {
+  font-family: var(--mono);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.kpi-sub {
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--muted);
+  font-family: var(--mono);
+}
+
+.kpi.base .kpi-value { color: var(--blue); }
+.kpi.over .kpi-value { color: var(--amber); }
+.kpi.saved .kpi-value { color: var(--green); }
+.kpi.early .kpi-value { color: var(--green); }
+
+/* Payoff badge — shown when overpayment pays off loan early */
+.payoff-badge {
+  display: none;
+  background: rgba(52,199,123,0.1);
+  border: 1px solid rgba(52,199,123,0.25);
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--green);
+  text-align: center;
+}
+.payoff-badge.visible { display: block; }
+
+/* ── Chart ── */
+.chart-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 18px 18px 14px;
+}
+
+.chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.chart-title {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+}
+
+/* Chart view tabs */
+.view-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.view-tab {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  padding: 4px 10px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.12s;
+  -webkit-tap-highlight-color: transparent;
+}
+.view-tab.active { background: var(--surface2); color: var(--text); border-color: var(--dim); }
+
+/* ── Summary table ── */
+.summary-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 18px;
+}
+
+.sum-title {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+}
+
+.sum-row {
+  display: grid;
+  grid-template-columns: 1fr 110px 110px;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  align-items: center;
+}
+.sum-row:last-child { border-bottom: none; }
+.sum-row.header .cell {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.sum-row.total { border-top: 1px solid var(--border); padding-top: 8px; margin-top: 2px; }
+.sum-row.total .row-label { font-weight: 600; color: var(--text); }
+.sum-row.highlight .cell.over-cell { color: var(--green); }
+
+.row-label { color: #808898; display: flex; align-items: center; }
+.cell { font-family: var(--mono); font-size: 12px; text-align: right; }
+.cell.base-cell { color: var(--blue); }
+.cell.over-cell { color: var(--amber); }
+
+/* DTI row */
+.dti-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.dti-label { font-family: var(--mono); font-size: 10px; color: var(--muted); display: flex; align-items: center; }
+.dti-bar-wrap { flex: 1; height: 4px; background: var(--dim); border-radius: 2px; overflow: hidden; }
+.dti-bar { height: 100%; border-radius: 2px; transition: width 0.2s, background 0.2s; }
+.dti-value { font-family: var(--mono); font-size: 12px; font-weight: 600; }
+
+@media (max-width: 760px) {
+  .layout { grid-template-columns: 1fr; }
+  .kpi-strip { grid-template-columns: repeat(2, 1fr); }
+  .controls { position: static; }
+}
+</style>
+</head>
+<body>
+
+<div class="tooltip-popup" id="tooltip-popup"></div>
+
+<div class="layout">
+
+  <div class="page-header">
+    <div class="eyebrow">Mortgage Projector</div>
+    <h1>Your loan, <em>your terms</em></h1>
+    <div class="header-sub">Adjust variables · see payoff · drag overpayment to accelerate</div>
+  </div>
+
+  <!-- LEFT: Controls -->
+  <div class="controls">
+
+    <div class="ctrl-section-title">Loan</div>
+
+    <div class="slider-group">
+      <div class="slider-header">
+        <span class="slider-label">Purchase price <button class="info-btn" data-tip="purchase">?</button></span>
+        <span class="slider-value" id="val-purchase">$380,000</span>
+      </div>
+      <input type="range" id="sl-purchase" min="150000" max="1000000" step="5000" value="380000">
+    </div>
+
+    <div class="slider-group">
+      <div class="slider-header">
+        <span class="slider-label">Down payment <button class="info-btn" data-tip="down">?</button></span>
+        <span class="slider-value" id="val-down">$105,000</span>
+      </div>
+      <input type="range" id="sl-down" min="10000" max="400000" step="5000" value="105000">
+    </div>
+
+    <div class="slider-group">
+      <div class="slider-header">
+        <span class="slider-label">Interest rate <button class="info-btn" data-tip="rate">?</button></span>
+        <span class="slider-value" id="val-rate">6.49%</span>
+      </div>
+      <input type="range" id="sl-rate" min="3.0" max="10.0" step="0.05" value="6.49">
+    </div>
+
+    <div class="slider-group">
+      <div class="slider-header">
+        <span class="slider-label">Loan term <button class="info-btn" data-tip="term">?</button></span>
+        <span class="slider-value" id="val-term">30 yrs</span>
+      </div>
+      <input type="range" id="sl-term" min="10" max="30" step="5" value="30">
+    </div>
+
+    <div class="divider"></div>
+    <div class="ctrl-section-title">Carrying costs</div>
+
+    <div class="slider-group">
+      <div class="slider-header" style="margin-bottom:8px">
+        <span class="slider-label">State preset <button class="info-btn" data-tip="state-preset">?</button></span>
+        <select id="sel-state" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:4px;font-family:var(--mono);font-size:11px;padding:3px 7px;cursor:pointer;outline:none;">
+          <option value="">— custom —</option>
+          <option value="ri" selected>Rhode Island</option>
+          <option value="ma">Massachusetts</option>
+          <option value="ct">Connecticut</option>
+        </select>
+      </div>
+      <div id="state-summary" style="font-family:var(--mono);font-size:10px;color:var(--blue);background:var(--blue-glow);border:1px solid rgba(91,156,246,0.15);border-radius:4px;padding:6px 10px;margin-bottom:10px;">
+        RI avg: tax 1.60% · insurance $175/mo
+      </div>
+    </div>
+
+    <div class="slider-group">
+      <div class="slider-header">
+        <span class="slider-label">Property tax rate <button class="info-btn" data-tip="proptax">?</button></span>
+        <span class="slider-value" id="val-proptax">1.60%</span>
+      </div>
+      <div class="slider-wrap">
+        <input type="range" id="sl-proptax" min="0.5" max="2.5" step="0.05" value="1.60">
+      </div>
+      <div style="text-align:right;font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px"><span id="val-proptax-mo">—</span>/mo</div>
+    </div>
+
+    <div class="slider-group">
+      <div class="slider-header">
+        <span class="slider-label">Homeowner's insurance <button class="info-btn" data-tip="insurance">?</button></span>
+        <span class="slider-value" id="val-insurance">$175</span>
+      </div>
+      <div class="slider-wrap">
+        <input type="range" id="sl-insurance" min="100" max="250" step="5" value="175">
+      </div>
+    </div>
+
+    <div class="slider-group">
+      <div class="slider-header">
+        <span class="slider-label">Maintenance <button class="info-btn" data-tip="maint">?</button></span>
+        <span class="slider-value" id="val-maint">$500</span>
+      </div>
+      <div class="slider-wrap">
+        <input type="range" id="sl-maint" min="0" max="2000" step="50" value="500">
+        <div class="pip-track" id="pip-track-maint"></div>
+      </div>
+    </div>
+
+    <div class="slider-group">
+      <div class="slider-header">
+        <span class="slider-label">HOA fees <button class="info-btn" data-tip="hoa">?</button></span>
+        <span class="slider-value" id="val-hoa">$0</span>
+      </div>
+      <input type="range" id="sl-hoa" min="0" max="1500" step="25" value="0">
+    </div>
+
+    <div class="divider"></div>
+    <div class="ctrl-section-title">Growth</div>
+
+    <div class="slider-group">
+      <div class="slider-header">
+        <span class="slider-label">Home appreciation <button class="info-btn" data-tip="appr">?</button></span>
+        <span class="slider-value" id="val-appr">3.0%</span>
+      </div>
+      <input type="range" id="sl-appr" min="0" max="8" step="0.25" value="3.0">
+    </div>
+
+
+    <div class="divider"></div>
+    <div class="ctrl-section-title">Income <button class="info-btn" data-tip="income-slider">?</button></div>
+
+    <div class="slider-group">
+      <div class="slider-header">
+        <span class="slider-label">Monthly gross income</span>
+        <span class="slider-value" id="val-income">$12,083</span>
+      </div>
+      <input type="range" id="sl-income" min="3000" max="40000" step="500" value="12083">
+      <div style="text-align:right; font-family:var(--mono); font-size:10px; color:var(--muted); margin-top:4px;">
+        <span id="val-income-annual">$145,000/yr</span>
+      </div>
+    </div>
+    <div class="slider-group">
+      <div class="slider-header">
+        <span class="slider-label">Other monthly debt <button class="info-btn" data-tip="other-debt">?</button></span>
+        <span class="slider-value" id="val-debt">$2,000</span>
+      </div>
+      <input type="range" id="sl-debt" min="0" max="10000" step="100" value="2000">
+    </div>
+    <!-- Overpayment section -->
+    <div class="overpay-section">
+      <div class="ctrl-section-title">Overpayment <button class="info-btn" data-tip="overpay">?</button></div>
+
+      <div class="slider-group">
+        <div class="slider-header">
+          <span class="slider-label">Extra per month</span>
+          <span class="slider-value" id="val-extra">$0</span>
+        </div>
+        <div class="slider-wrap">
+          <input type="range" class="overpay" id="sl-extra" min="0" max="2500" step="50" value="0">
+          <div class="pip-track" id="pip-track-extra"></div>
+        </div>
+      </div>
+
+      <div class="slider-group" style="margin-bottom:0">
+        <div class="slider-header">
+          <span class="slider-label">Annual lump sum <button class="info-btn" data-tip="lump">?</button></span>
+          <span class="slider-value" id="val-lump">$0</span>
+        </div>
+        <div class="slider-wrap">
+          <input type="range" class="overpay" id="sl-lump" min="0" max="25000" step="500" value="0">
+          <div class="pip-track" id="pip-track-lump"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT -->
+  <div class="right-col">
+
+    <!-- KPIs -->
+    <div class="kpi-strip">
+      <div class="kpi base">
+        <div class="kpi-label">Monthly P&I <button class="info-btn" data-tip="kpi-pi">?</button></div>
+        <div class="kpi-value" id="kpi-pi">—</div>
+        <div class="kpi-sub" id="kpi-pi-sub">base payment</div>
+      </div>
+      <div class="kpi over">
+        <div class="kpi-label">Total / mo <button class="info-btn" data-tip="kpi-total">?</button></div>
+        <div class="kpi-value" id="kpi-total">—</div>
+        <div class="kpi-sub">incl. overpayment</div>
+      </div>
+      <div class="kpi saved">
+        <div class="kpi-label">Interest saved <button class="info-btn" data-tip="kpi-saved">?</button></div>
+        <div class="kpi-value" id="kpi-saved">—</div>
+        <div class="kpi-sub">vs. base schedule</div>
+      </div>
+      <div class="kpi early">
+        <div class="kpi-label">Paid off <button class="info-btn" data-tip="kpi-early">?</button></div>
+        <div class="kpi-value" id="kpi-early">—</div>
+        <div class="kpi-sub" id="kpi-early-sub">loan end</div>
+      </div>
+    </div>
+
+    <div class="payoff-badge" id="payoff-badge"></div>
+
+    <!-- Chart -->
+    <div class="chart-panel">
+      <div class="chart-header">
+        <div class="chart-title" id="chart-title">REMAINING BALANCE <button class="info-btn" data-tip="chart-balance">?</button></div>
+        <div class="view-tabs">
+          <button class="view-tab active" onclick="setView('balance')">Balance</button>
+          <button class="view-tab" onclick="setView('equity')">Equity</button>
+          <button class="view-tab" onclick="setView('interest')">Interest paid</button>
+        </div>
+      </div>
+      <canvas id="mainChart" height="260"></canvas>
+    </div>
+
+    <!-- Summary table -->
+    <div class="summary-panel">
+      <div class="sum-title">Payment breakdown <button class="info-btn" data-tip="breakdown">?</button></div>
+      <div class="sum-row header">
+        <div class="cell">Item</div>
+        <div class="cell" style="color:var(--blue);opacity:.8">Base</div>
+        <div class="cell" style="color:var(--amber);opacity:.8">+ Overpay</div>
+      </div>
+      <div class="sum-row">
+        <div class="row-label">P&I / mo</div>
+        <div class="cell base-cell" id="st-base-pi">—</div>
+        <div class="cell over-cell" id="st-over-pi">—</div>
+      </div>
+      <div class="sum-row">
+        <div class="row-label">Tax + insurance / mo <button class="info-btn" data-tip="taxins-row">?</button></div>
+        <div class="cell base-cell" id="st-base-taxins">—</div>
+        <div class="cell over-cell" id="st-over-taxins">—</div>
+      </div>
+      <div class="sum-row">
+        <div class="row-label">Maintenance / mo</div>
+        <div class="cell base-cell" id="st-base-maint">—</div>
+        <div class="cell over-cell" id="st-over-maint">—</div>
+      </div>
+      <div class="sum-row">
+        <div class="row-label">HOA fees / mo</div>
+        <div class="cell base-cell" id="st-base-hoa">—</div>
+        <div class="cell over-cell" id="st-over-hoa">—</div>
+      </div>
+      <div class="sum-row">
+        <div class="row-label">Overpayment / mo <button class="info-btn" data-tip="overpay-table">?</button></div>
+        <div class="cell base-cell">—</div>
+        <div class="cell over-cell" id="st-extra">—</div>
+      </div>
+      <div class="sum-row total">
+        <div class="row-label">Total housing / mo</div>
+        <div class="cell base-cell" id="st-base-total">—</div>
+        <div class="cell over-cell" id="st-over-total">—</div>
+      </div>
+      <div class="sum-row highlight">
+        <div class="row-label">Total interest (life of loan) <button class="info-btn" data-tip="total-interest">?</button></div>
+        <div class="cell base-cell" id="st-base-int">—</div>
+        <div class="cell over-cell" id="st-over-int">—</div>
+      </div>
+      <div class="sum-row highlight">
+        <div class="row-label">Loan payoff</div>
+        <div class="cell base-cell" id="st-base-payoff">—</div>
+        <div class="cell over-cell" id="st-over-payoff">—</div>
+      </div>
+
+      <div class="dti-row">
+        <span class="dti-label">Back-end DTI <button class="info-btn" data-tip="dti">?</button></span>
+        <div class="dti-bar-wrap"><div class="dti-bar" id="dti-bar"></div></div>
+        <span class="dti-value" id="dti-value">—</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── Tips ──
+const TIPS = {
+  purchase: { title: 'Purchase Price', body: 'Total home price. Loan = purchase minus down payment. Closing costs (2–5% of loan) are separate and not modeled here.' },
+  down: { title: 'Down Payment', body: '20%+ avoids PMI (~$100–200/mo). Larger down = smaller loan, lower payment, but more upfront cash committed to the asset.' },
+  rate: { title: 'Interest Rate', body: 'Today\'s 30yr fixed: ~6.49% (Freddie Mac, June 2026). Your 760+ credit score qualifies for near-best rates. Each 0.5% moves the payment ~$85/mo on a $275k loan.' },
+  term: { title: 'Loan Term', body: '<strong>30yr:</strong> Lower payment, more total interest.<br><strong>15yr:</strong> ~5.84% rate, ~$570/mo higher, ~$90k less interest, free-and-clear in half the time.' },
+  'state-preset': { title: 'State Preset', body: 'Sets both property tax rate and homeowner\'s insurance to published state averages in one tap.<br><br><strong>RI:</strong> 1.60% tax · $175/mo insurance<br><strong>MA:</strong> 1.17% tax · $155/mo insurance<br><strong>CT:</strong> 1.79% tax · $165/mo insurance<br><br>Sources: Tax Foundation 2024 (tax rates), Insurance.com 2024 (insurance). Switching to a preset overwrites both sliders. You can still fine-tune individually after selecting a state — the preset label changes to "Custom".' },
+  proptax: { title: 'Property Tax Rate', body: 'Annual property tax as % of home value, auto-calculated monthly from purchase price × rate ÷ 12. Use the state preset dropdown to jump to a regional average, or dial in manually. Local mill rates vary within each state — check your specific municipality.' },
+  insurance: { title: "Homeowner's Insurance", body: 'Monthly premium. Use the state preset dropdown to apply regional averages. Coastal, flood-zone, and older properties run significantly higher than state averages. Does not auto-scale with purchase price — adjust manually if you change the purchase price substantially.' },
+  'taxins-row': { title: 'Tax + Insurance Combined', body: 'Property tax (auto-calculated from purchase price × tax rate) plus homeowner\'s insurance. Together these are often called PITI with principal and interest — the four components every lender evaluates.' },
+  hoa: { title: 'HOA Fees', body: 'Homeowners Association fees are pure cost — no asset value, no equity. Common in condos, townhomes, and planned communities. Providence/Pawtucket condos run $150–600/mo. If the property has an HOA, budget it as a permanent fixed expense that typically increases 3–5%/yr.' },
+  maint: { title: 'Maintenance', body: '1% of home value/year is the standard rule ($380k = ~$317/mo).<br><br>The suggested pip adjusts based on your HOA: <strong>pip = (1% of purchase price ÷ 12) − HOA</strong>. The idea: HOA fees typically cover exterior upkeep, roof, and common areas — reducing what you personally need to budget. If HOA already consumes the full 1% budget, pip shows $0.<br><br>Running both HOA and maintenance at full value double-counts carrying costs on HOA properties.' },
+  appr: { title: 'Home Appreciation', body: 'Historical national avg: ~3–4%/yr. Providence/Pawtucket corridor has run 3–5% in recent years. Appreciation drives your equity even without overpayments.' },
+  overpay: { title: 'Overpayment', body: 'Any payment above required P&I goes <strong>directly to principal</strong>, reducing the balance on which future interest accrues.<br><br><strong>Monthly extra pips</strong> (scale with your P&I):<br><strong>Conservative pip:</strong> P&I ÷ 12 — equivalent to making one extra full payment per year, spread monthly. The classic biweekly-payment strategy.<br><strong>Aggressive pip:</strong> 20% of P&I monthly — meaningfully accelerates payoff without strain on most budgets.<br><br><strong>Annual lump sum pips:</strong><br><strong>Conservative pip:</strong> 1× monthly P&I as a once-yearly payment<br><strong>Aggressive pip:</strong> 2× monthly P&I as a once-yearly payment' },
+  lump: { title: 'Annual Lump Sum', body: 'A once-yearly extra payment applied directly to principal at the start of each year. Tax refunds, bonuses, or inheritance work well here.<br><br>Pips scale with your P&I:<br><strong>Conservative pip:</strong> 1× your monthly P&I as an annual lump — modest but meaningful<br><strong>Aggressive pip:</strong> 2× your monthly P&I annually — roughly equivalent to one extra payment every 6 months' },
+  'kpi-pi': { title: 'Principal & Interest', body: 'Your fixed monthly mortgage payment. Early in the loan, ~85% is interest. By year 20, that flips. The split is shown in the amortization schedule.' },
+  'kpi-total': { title: 'Total Monthly Cost', body: 'P&I + tax/insurance + maintenance + HOA + any overpayment. This is your full housing cost — what leaves your account every month.' },
+  'kpi-saved': { title: 'Interest Saved', body: 'The total interest you avoid paying by overpaying. Every dollar of principal you eliminate early removes months of future interest charges. This number can be substantial — often tens of thousands.' },
+  'kpi-early': { title: 'Payoff Date', body: 'With overpayments, the loan terminates early. After payoff, your housing cost drops to tax + insurance + maintenance only — a significant cash flow improvement.' },
+  'chart-balance': { title: 'Remaining Balance', body: 'Blue = base schedule. Amber = with your overpayments. The gap between the lines is extra equity you\'ve built ahead of schedule. Where amber hits zero is your early payoff date.' },
+  'chart-equity': { title: 'Home Equity', body: 'Home value (appreciating at your set rate) minus remaining loan balance. Blue = base schedule equity. Amber = accelerated equity from overpayments. Overpaying steepens the equity curve.' },
+  'chart-interest': { title: 'Cumulative Interest Paid', body: 'Total interest paid to the bank over time. Both lines start together and diverge as overpayments reduce the principal faster. The vertical gap at any point is money you\'ve kept vs. the base schedule.' },
+  breakdown: { title: 'Payment Breakdown', body: 'Side-by-side comparison of base schedule vs. overpayment scenario. The interest savings and early payoff columns are the key numbers to focus on.' },
+  'overpay-table': { title: 'Monthly Overpayment', body: 'The extra amount going to principal each month. Combined with the lump sum, this defines your acceleration. The bank must apply this to principal — confirm with your lender that there\'s no prepayment penalty (rare on conventional loans).' },
+  'total-interest': { title: 'Total Interest Over Loan Life', body: 'The full cost of borrowing. On a $275k loan at 6.49% over 30 years, you pay roughly $340k in interest on top of the $275k principal — you\'re paying for the house nearly twice. Overpayment attacks this directly.' },
+  'other-debt': { title: 'Other Monthly Debt', body: 'All non-housing debt payments: car loans, student loans, credit card minimums, personal loans. Lenders include these in your back-end DTI. Paying off a $500/mo car loan has the same DTI effect as earning ~$1,400 more per month (at a 36% DTI threshold). Defaults to $2,000/mo based on your earlier inputs.' },
+  'income-slider': { title: 'Monthly Gross Income', body: 'Your total household income before taxes. This drives the DTI calculation. Raising income is the fastest way to improve DTI — a raise, a second income, or paid-off debt all shift this needle.' },
+  dti: { title: 'Back-End DTI', body: 'Total monthly debt ÷ gross monthly income. Includes P&I + tax/insurance + your other monthly debt vs. gross monthly income.<br><br><strong style="color:#34c77b">Green &lt;36%:</strong> Comfortable<br><strong style="color:#f0a500">Amber 36–45%:</strong> Qualifying range<br><strong style="color:#e05c5c">Red &gt;45%:</strong> Likely disqualifying' }
+};
+
+// ── Tooltip logic ──
+const popup = document.getElementById('tooltip-popup');
+let activeBtn = null;
+
+function showTip(btn) {
+  const key = btn.dataset.tip;
+  const tip = TIPS[key];
+  if (!tip) return;
+  if (activeBtn === btn) { hideTip(); return; }
+  if (activeBtn) activeBtn.classList.remove('active');
+  activeBtn = btn;
+  btn.classList.add('active');
+  popup.innerHTML = `<span class="tip-title">${tip.title}</span>${tip.body}`;
+  popup.classList.add('visible');
+  positionTip(btn);
+}
+
+function hideTip() {
+  popup.classList.remove('visible');
+  if (activeBtn) { activeBtn.classList.remove('active'); activeBtn = null; }
+}
+
+function positionTip(btn) {
+  const r = btn.getBoundingClientRect();
+  const pw = 280;
+  let left = r.right + 10;
+  let top = r.top - 10;
+  if (left + pw > window.innerWidth - 8) left = r.left - pw - 10;
+  if (left < 8) left = 8;
+  if (top + 180 > window.innerHeight - 8) top = window.innerHeight - 188;
+  if (top < 8) top = 8;
+  popup.style.left = left + 'px';
+  popup.style.top = top + 'px';
+}
+
+document.querySelectorAll('.info-btn').forEach(btn => {
+  btn.addEventListener('click', e => { e.stopPropagation(); showTip(btn); });
+  btn.addEventListener('touchend', e => { e.preventDefault(); e.stopPropagation(); showTip(btn); });
+});
+document.addEventListener('click', hideTip);
+
+// ── State ──
+const S = {
+  purchase: 380000, down: 105000, rate: 6.49, term: 30,
+  proptax: 1.60, insurance: 175, maint: 500, hoa: 0, appr: 3.0,
+  extra: 0, lump: 0,
+  income: 12083, debt: 2000,
+};
+
+let currentView = 'balance';
+
+function setView(v) {
+  currentView = v;
+  document.querySelectorAll('.view-tab').forEach((t, i) => {
+    t.classList.toggle('active', ['balance','equity','interest'][i] === v);
+  });
+  const titles = {
+    balance: 'REMAINING BALANCE',
+    equity: 'HOME EQUITY',
+    interest: 'CUMULATIVE INTEREST PAID'
+  };
+  const tipKeys = {
+    balance: 'chart-balance',
+    equity: 'chart-equity',
+    interest: 'chart-interest'
+  };
+  const titleEl = document.getElementById('chart-title');
+  titleEl.childNodes[0].textContent = titles[v] + ' ';
+  titleEl.querySelector('.info-btn').dataset.tip = tipKeys[v];
+  update();
+}
+
+// ── Formatters ──
+const fmtD = v => '$' + Math.round(Math.abs(v)).toLocaleString();
+const fmtK = v => '$' + Math.round(Math.abs(v) / 1000) + 'k';
+
+// ── Sliders ──
+const sliderDefs = [
+  { id: 'sl-purchase', key: 'purchase', fmt: v => fmtD(v) },
+  { id: 'sl-down',     key: 'down',     fmt: v => fmtD(v) },
+  { id: 'sl-rate',     key: 'rate',     fmt: v => parseFloat(v).toFixed(2) + '%' },
+  { id: 'sl-term',     key: 'term',     fmt: v => v + ' yrs' },
+  { id: 'sl-proptax',  key: 'proptax',  fmt: v => parseFloat(v).toFixed(2) + '%' },
+  { id: 'sl-insurance', key: 'insurance',fmt: v => fmtD(v) },
+  { id: 'sl-maint',    key: 'maint',    fmt: v => fmtD(v) },
+  { id: 'sl-hoa',      key: 'hoa',      fmt: v => v == 0 ? '$0' : fmtD(v) },
+  { id: 'sl-appr',     key: 'appr',     fmt: v => parseFloat(v).toFixed(2) + '%' },
+  { id: 'sl-extra',    key: 'extra',    fmt: v => v == 0 ? '$0' : fmtD(v) + '/mo' },
+  { id: 'sl-lump',     key: 'lump',     fmt: v => v == 0 ? '$0' : fmtD(v) + '/yr' },
+  { id: 'sl-income',   key: 'income',   fmt: v => fmtD(v) + '/mo' },
+  { id: 'sl-debt',     key: 'debt',     fmt: v => v == 0 ? '$0' : fmtD(v) + '/mo' },
+];
+
+sliderDefs.forEach(({ id, key, fmt }) => {
+  const el = document.getElementById(id);
+  const valEl = document.getElementById('val-' + id.replace('sl-', ''));
+  el.addEventListener('input', () => {
+    S[key] = parseFloat(el.value);
+    valEl.textContent = fmt(el.value);
+    update();
+  });
+});
+
+// ── Amortization ──
+// Returns array of monthly {balance, interestPaid, principalPaid, cumulativeInterest}
+// Stops when balance hits 0 (for overpayment scenarios)
+function amortize(loan, annualRate, termMonths, extraMonthly, annualLump) {
+  const r = annualRate / 100 / 12;
+  const basePI = r === 0 ? loan / termMonths : loan * (r * Math.pow(1 + r, termMonths)) / (Math.pow(1 + r, termMonths) - 1);
+  let balance = loan;
+  let cumInterest = 0;
+  const months = [];
+
+  for (let m = 1; m <= termMonths; m++) {
+    if (balance <= 0) break;
+
+    // Annual lump sum at start of each year (month 1, 13, 25...)
+    if (annualLump > 0 && m > 1 && (m - 1) % 12 === 0) {
+      balance = Math.max(0, balance - annualLump);
+    }
+    if (balance <= 0) { months.push({ balance: 0, cumInterest, month: m }); break; }
+
+    const interestThisMonth = balance * r;
+    let principalThisMonth = basePI - interestThisMonth + extraMonthly;
+    principalThisMonth = Math.min(principalThisMonth, balance); // don't overshoot
+    balance = Math.max(0, balance - principalThisMonth);
+    cumInterest += interestThisMonth;
+    months.push({ balance, cumInterest, month: m });
+
+    if (balance <= 0.01) break;
+  }
+
+  return { months, basePI, totalInterest: cumInterest };
+}
+
+function buildModel() {
+  const { purchase, down, rate, term, proptax, insurance, maint, hoa, appr, extra, lump } = S;
+  const taxMo = Math.round(purchase * proptax / 100 / 12);
+  const taxins = taxMo + insurance;
+  const loan = Math.max(0, purchase - down);
+  const termMonths = term * 12;
+
+  const base = amortize(loan, rate, termMonths, 0, 0);
+  const over = amortize(loan, rate, termMonths, extra, lump);
+
+  // Build yearly arrays
+  const displayYears = term;
+  const labels = [];
+  const baseBalance = [], overBalance = [];
+  const baseEquity = [], overEquity = [];
+  const baseInt = [], overInt = [];
+
+  for (let y = 0; y <= displayYears; y++) {
+    labels.push('Yr ' + y);
+    const mi = Math.min(y * 12 - 1, base.months.length - 1);
+    const omi = Math.min(y * 12 - 1, over.months.length - 1);
+
+    const bBal = y === 0 ? loan : (mi >= 0 ? base.months[mi].balance : 0);
+    const oBal = y === 0 ? loan : (omi >= 0 ? over.months[omi].balance : 0);
+
+    const homeVal = purchase * Math.pow(1 + appr / 100, y);
+    baseBalance.push(Math.round(bBal));
+    overBalance.push(Math.round(oBal));
+    baseEquity.push(Math.round(homeVal - bBal));
+    overEquity.push(Math.round(homeVal - oBal));
+    baseInt.push(Math.round(y === 0 ? 0 : (mi >= 0 ? base.months[mi].cumInterest : base.totalInterest)));
+    overInt.push(Math.round(y === 0 ? 0 : (omi >= 0 ? over.months[omi].cumInterest : over.totalInterest)));
+  }
+
+  // Payoff months
+  const basePayoffMonth = base.months.length;
+  const overPayoffMonth = over.months.length;
+  const monthsSaved = basePayoffMonth - overPayoffMonth;
+
+  return {
+    labels, baseBalance, overBalance, baseEquity, overEquity, baseInt, overInt,
+    base, over, loan,
+    basePayoffMonth, overPayoffMonth, monthsSaved,
+    interestSaved: base.totalInterest - over.totalInterest,
+    pi: base.basePI,
+    overPI: over.basePI,
+  };
+}
+
+function fmtMonths(m) {
+  const yrs = Math.floor(m / 12);
+  const mos = m % 12;
+  if (mos === 0) return yrs + 'yr';
+  return yrs + 'yr ' + mos + 'mo';
+}
+
+
+// ── Pip system ──
+const PIPS = {
+  proptax: [
+    { val: 1.17, label: 'MA' },
+    { val: 1.60, label: 'RI' },
+    { val: 1.79, label: 'CT' },
+  ],
+  insurance: [
+    { val: 155, label: 'MA' },
+    { val: 165, label: 'CT' },
+    { val: 175, label: 'RI' },
+  ],
+};
+
+function pctToPos(val, min, max) {
+  return ((val - min) / (max - min) * 100).toFixed(2) + '%';
+}
+
+function buildStaticPips(trackId, pips, min, max, key, fmtFn) {
+  const track = document.getElementById(trackId);
+  if (!track) return;
+  track.innerHTML = '';
+  pips.forEach(p => {
+    const v = p.val;
+    const el = document.createElement('div');
+    el.className = 'pip';
+    el.style.left = pctToPos(v, min, max);
+    el.innerHTML = '<div class="pip-marker"></div><div class="pip-label">' + p.label + '</div>';
+    el.addEventListener('click', () => {
+      const sl = document.getElementById('sl-' + key);
+      sl.value = v;
+      S[key] = v;
+      document.getElementById('val-' + key).textContent = fmtFn(v);
+      update();
+    });
+    track.appendChild(el);
+  });
+}
+
+function updateDynamicPips(pi, loan) {
+  // ── Extra monthly overpayment pips ──
+  const conservExtra = Math.max(50, Math.round(pi / 12 / 50) * 50);
+  const aggressExtra = Math.max(100, Math.round(pi * 0.20 / 50) * 50);
+  const extraMax = Math.round(aggressExtra * 1.5 / 50) * 50;
+  const sl_extra = document.getElementById('sl-extra');
+  sl_extra.max = extraMax;
+
+  const trackExtra = document.getElementById('pip-track-extra');
+  if (trackExtra) {
+    trackExtra.innerHTML = '';
+    [
+      { val: conservExtra, label: 'conservative' },
+      { val: aggressExtra, label: 'aggressive' },
+    ].filter(p => p.val > 0 && p.val <= extraMax).forEach(p => {
+      const el = document.createElement('div');
+      el.className = 'pip amber';
+      el.style.left = pctToPos(p.val, 0, extraMax);
+      el.innerHTML = '<div class="pip-marker"></div><div class="pip-label">' + p.label + '</div>';
+      el.addEventListener('click', () => {
+        sl_extra.value = p.val;
+        S.extra = p.val;
+        document.getElementById('val-extra').textContent = '$' + p.val.toLocaleString() + '/mo';
+        update();
+      });
+      trackExtra.appendChild(el);
+    });
+  }
+
+  // ── Annual lump sum pips ──
+  const conservLump = Math.max(500, Math.round(pi / 500) * 500);
+  const aggressLump = Math.max(1000, Math.round(pi * 2 / 500) * 500);
+  const lumpMax = Math.round(aggressLump * 1.5 / 500) * 500;
+  const sl_lump = document.getElementById('sl-lump');
+  sl_lump.max = lumpMax;
+
+  const trackLump = document.getElementById('pip-track-lump');
+  if (trackLump) {
+    trackLump.innerHTML = '';
+    [
+      { val: conservLump, label: 'conservative' },
+      { val: aggressLump, label: 'aggressive' },
+    ].filter(p => p.val > 0 && p.val <= lumpMax).forEach(p => {
+      const el = document.createElement('div');
+      el.className = 'pip amber';
+      el.style.left = pctToPos(p.val, 0, lumpMax);
+      el.innerHTML = '<div class="pip-marker"></div><div class="pip-label">' + p.label + '</div>';
+      el.addEventListener('click', () => {
+        sl_lump.value = p.val;
+        S.lump = p.val;
+        document.getElementById('val-lump').textContent = '$' + p.val.toLocaleString() + '/yr';
+        update();
+      });
+      trackLump.appendChild(el);
+    });
+  }
+}
+
+
+function updateMaintPip(purchase, hoa) {
+  const track = document.getElementById('pip-track-maint');
+  if (!track) return;
+  track.innerHTML = '';
+  const onePctMo = Math.round(purchase * 0.01 / 12 / 50) * 50;
+  const suggested = Math.max(0, onePctMo - hoa);
+  if (suggested <= 0) return;
+  const el = document.createElement('div');
+  el.className = 'pip';
+  el.style.left = pctToPos(suggested, 0, 2000);
+  el.innerHTML = '<div class="pip-marker"></div><div class="pip-label">suggested</div>';
+  el.addEventListener('click', () => {
+    document.getElementById('sl-maint').value = suggested;
+    S.maint = suggested;
+    document.getElementById('val-maint').textContent = '$' + suggested.toLocaleString();
+    update();
+  });
+  track.appendChild(el);
+}
+
+
+// ── State presets ──
+const STATE_PRESETS = {
+  ri: { name: 'Rhode Island', proptax: 1.60, insurance: 175 },
+  ma: { name: 'Massachusetts', proptax: 1.17, insurance: 155 },
+  ct: { name: 'Connecticut',   proptax: 1.79, insurance: 165 },
+};
+
+function applyStatePreset(key) {
+  const summary = document.getElementById('state-summary');
+  if (!key || !STATE_PRESETS[key]) {
+    summary.textContent = 'Custom values — adjust sliders manually';
+    summary.style.color = 'var(--muted)';
+    summary.style.background = 'transparent';
+    summary.style.borderColor = 'var(--border)';
+    return;
+  }
+  const p = STATE_PRESETS[key];
+  // Set sliders
+  document.getElementById('sl-proptax').value = p.proptax;
+  document.getElementById('sl-insurance').value = p.insurance;
+  document.getElementById('val-proptax').textContent = p.proptax.toFixed(2) + '%';
+  document.getElementById('val-insurance').textContent = '$' + p.insurance;
+  S.proptax = p.proptax;
+  S.insurance = p.insurance;
+  // Update summary line
+  summary.textContent = p.name + ' avg: tax ' + p.proptax.toFixed(2) + '% · insurance $' + p.insurance + '/mo';
+  summary.style.color = 'var(--blue)';
+  summary.style.background = 'var(--blue-glow)';
+  summary.style.borderColor = 'rgba(91,156,246,0.15)';
+  update();
+}
+
+document.getElementById('sel-state').addEventListener('change', e => {
+  applyStatePreset(e.target.value);
+});
+
+// Reset preset label to custom when sliders are manually moved
+['sl-proptax', 'sl-insurance'].forEach(id => {
+  document.getElementById(id).addEventListener('input', () => {
+    document.getElementById('sel-state').value = '';
+    const summary = document.getElementById('state-summary');
+    summary.textContent = 'Custom values — adjust sliders manually';
+    summary.style.color = 'var(--muted)';
+    summary.style.background = 'transparent';
+    summary.style.borderColor = 'var(--border)';
+  });
+});
+
+function initPips() {
+  // state presets handled by dropdown
+}
+
+// ── Chart ──
+let chart;
+
+function getChartDatasets(model) {
+  const hasOver = S.extra > 0 || S.lump > 0;
+
+  if (currentView === 'balance') {
+    const sets = [{
+      label: 'Base schedule',
+      data: model.baseBalance,
+      borderColor: '#5b9cf6',
+      backgroundColor: 'rgba(91,156,246,0.06)',
+      borderWidth: 2.5,
+      pointRadius: 2, pointHoverRadius: 5,
+      pointBackgroundColor: '#5b9cf6',
+      fill: true, tension: 0.3,
+    }];
+    if (hasOver) sets.push({
+      label: 'With overpayments',
+      data: model.overBalance,
+      borderColor: '#f0a500',
+      backgroundColor: 'rgba(240,165,0,0.06)',
+      borderWidth: 2.5,
+      pointRadius: 2, pointHoverRadius: 5,
+      pointBackgroundColor: '#f0a500',
+      fill: true, tension: 0.3,
+    });
+    return sets;
+  }
+
+  if (currentView === 'equity') {
+    const sets = [{
+      label: 'Base equity',
+      data: model.baseEquity,
+      borderColor: '#5b9cf6',
+      backgroundColor: 'rgba(91,156,246,0.06)',
+      borderWidth: 2.5,
+      pointRadius: 2, pointHoverRadius: 5,
+      pointBackgroundColor: '#5b9cf6',
+      fill: true, tension: 0.3,
+    }];
+    if (hasOver) sets.push({
+      label: 'Accelerated equity',
+      data: model.overEquity,
+      borderColor: '#f0a500',
+      backgroundColor: 'rgba(240,165,0,0.06)',
+      borderWidth: 2.5,
+      pointRadius: 2, pointHoverRadius: 5,
+      pointBackgroundColor: '#f0a500',
+      fill: true, tension: 0.3,
+    });
+    return sets;
+  }
+
+  // interest
+  const sets = [{
+    label: 'Base interest paid',
+    data: model.baseInt,
+    borderColor: '#5b9cf6',
+    backgroundColor: 'rgba(91,156,246,0.06)',
+    borderWidth: 2.5,
+    pointRadius: 2, pointHoverRadius: 5,
+    pointBackgroundColor: '#5b9cf6',
+    fill: true, tension: 0.3,
+  }];
+  if (hasOver) sets.push({
+    label: 'Overpay interest paid',
+    data: model.overInt,
+    borderColor: '#f0a500',
+    backgroundColor: 'rgba(240,165,0,0.06)',
+    borderWidth: 2.5,
+    pointRadius: 2, pointHoverRadius: 5,
+    pointBackgroundColor: '#f0a500',
+    fill: true, tension: 0.3,
+  });
+  return sets;
+}
+
+const earlyPayoffPlugin = {
+  id: 'earlyPayoff',
+  afterDraw(c) {
+    const yr = c.config._earlyPayoffYear;
+    if (!yr || currentView !== 'balance') return;
+    const { ctx, scales: { x, y } } = c;
+    const xPos = x.getPixelForValue(yr);
+    ctx.save();
+    ctx.strokeStyle = '#f0a500';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 3]);
+    ctx.globalAlpha = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(xPos, c.chartArea.top);
+    ctx.lineTo(xPos, c.chartArea.bottom);
+    ctx.stroke();
+    ctx.restore();
+  }
+};
+
+function initChart(model) {
+  const ctx2 = document.getElementById('mainChart').getContext('2d');
+  chart = new Chart(ctx2, {
+    type: 'line',
+    plugins: [earlyPayoffPlugin],
+    data: { labels: model.labels, datasets: getChartDatasets(model) },
+    options: {
+      responsive: true,
+      animation: { duration: 100 },
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          labels: {
+            color: '#505668',
+            font: { family: 'IBM Plex Mono', size: 10 },
+            boxWidth: 12, padding: 14,
+          }
+        },
+        tooltip: {
+          backgroundColor: '#161926',
+          borderColor: '#2a2f3e',
+          borderWidth: 1,
+          titleColor: '#dde0ea',
+          bodyColor: '#808898',
+          titleFont: { family: 'IBM Plex Mono', size: 11 },
+          bodyFont: { family: 'IBM Plex Mono', size: 11 },
+          padding: 10,
+          callbacks: {
+            label: ctx => '  ' + ctx.dataset.label + ': $' + Math.round(ctx.parsed.y).toLocaleString()
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: '#13161f' },
+          ticks: { color: '#2a2f3e', font: { family: 'IBM Plex Mono', size: 9 }, maxTicksLimit: 12 }
+        },
+        y: {
+          grid: { color: '#13161f' },
+          ticks: {
+            color: '#2a2f3e',
+            font: { family: 'IBM Plex Mono', size: 9 },
+            callback: v => '$' + Math.abs(v / 1000).toFixed(0) + 'k'
+          }
+        }
+      }
+    }
+  });
+  chart.config._earlyPayoffYear = null;
+}
+
+function updateChart(model) {
+  chart.data.labels = model.labels;
+  chart.data.datasets = getChartDatasets(model);
+  const hasOver = S.extra > 0 || S.lump > 0;
+  chart.config._earlyPayoffYear = hasOver ? Math.floor(model.overPayoffMonth / 12) : null;
+  chart.update('none');
+}
+
+// ── Main update ──
+function update() {
+  const model = buildModel();
+  const { proptax, insurance, maint, hoa, extra, income, debt } = S;
+  const taxMo = Math.round(S.purchase * proptax / 100 / 12);
+  const taxins = taxMo + insurance;
+  updateMaintPip(S.purchase, S.hoa);
+  const hasOver = extra > 0 || S.lump > 0;
+
+  const pi = model.pi;
+  const totalBase = pi + taxins + maint + hoa;
+  const totalOver = pi + taxins + maint + hoa + extra;
+
+  // KPIs
+  document.getElementById('kpi-pi').textContent = fmtD(pi);
+  document.getElementById('kpi-total').textContent = hasOver ? fmtD(totalOver) : fmtD(totalBase);
+  document.getElementById('kpi-saved').textContent = hasOver ? '+$' + Math.round(model.interestSaved / 1000) + 'k' : '$0';
+  document.getElementById('kpi-early').textContent = fmtMonths(model.overPayoffMonth);
+  document.getElementById('kpi-early-sub').textContent = hasOver
+    ? model.monthsSaved + ' mo early'
+    : 'on schedule';
+
+  // Payoff badge
+  const badge = document.getElementById('payoff-badge');
+  if (hasOver && model.monthsSaved > 0) {
+    badge.textContent = `▲ Overpayments eliminate ${fmtMonths(model.monthsSaved)} of payments — saving ${fmtD(model.interestSaved)} in interest`;
+    badge.classList.add('visible');
+  } else {
+    badge.classList.remove('visible');
+  }
+
+  // Summary table
+  document.getElementById('st-base-pi').textContent = fmtD(pi);
+  document.getElementById('st-over-pi').textContent = fmtD(pi);
+  document.getElementById('st-base-taxins').textContent = fmtD(taxins);
+  document.getElementById('st-over-taxins').textContent = fmtD(taxins);
+  document.getElementById('st-base-maint').textContent = fmtD(maint);
+  document.getElementById('st-over-maint').textContent = fmtD(maint);
+  document.getElementById('st-base-hoa').textContent = hoa > 0 ? fmtD(hoa) : '—';
+  document.getElementById('st-over-hoa').textContent = hoa > 0 ? fmtD(hoa) : '—';
+  document.getElementById('st-extra').textContent = extra > 0 ? fmtD(extra) : '—';
+  document.getElementById('st-base-total').textContent = fmtD(totalBase);
+  document.getElementById('st-over-total').textContent = hasOver ? fmtD(totalOver) : fmtD(totalBase);
+  document.getElementById('st-base-int').textContent = fmtD(model.base.totalInterest);
+  document.getElementById('st-over-int').textContent = hasOver ? fmtD(model.over.totalInterest) : '—';
+  document.getElementById('st-base-payoff').textContent = fmtMonths(model.basePayoffMonth);
+  document.getElementById('st-over-payoff').textContent = hasOver ? fmtMonths(model.overPayoffMonth) : '—';
+
+  // DTI
+  const grossMonthly = income;
+  document.getElementById('val-proptax-mo').textContent = '$' + taxMo.toLocaleString();
+  document.getElementById('val-income-annual').textContent = '$' + (income * 12).toLocaleString() + '/yr';
+  const dti = ((pi + taxins + debt) / grossMonthly) * 100;
+  const dtiEl = document.getElementById('dti-value');
+  const dtiBar = document.getElementById('dti-bar');
+  dtiEl.textContent = dti.toFixed(1) + '%';
+  dtiBar.style.width = (Math.min(dti, 60) / 60 * 100) + '%';
+  const color = dti < 36 ? '#34c77b' : dti < 45 ? '#f0a500' : '#e05c5c';
+  dtiEl.style.color = color;
+  dtiBar.style.background = color;
+
+  updateDynamicPips(model.pi, model.loan);
+  if (chart) updateChart(model);
+}
+
+// Init
+const m = buildModel();
+initPips();
+initChart(m);
+update();
+</script>
+</body>
+</html>
