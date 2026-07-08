@@ -809,7 +809,10 @@ input[type=range]::-moz-range-thumb {
         <span class="slider-label">Monthly rent <button class="info-btn" data-tip="rvb-rent">?</button></span>
         <span class="slider-value" id="val-rent">$1,800</span>
       </div>
-      <input type="range" id="sl-rent" min="500" max="5000" step="50" value="1800">
+      <div class="slider-wrap">
+        <input type="range" id="sl-rent" min="500" max="5000" step="50" value="1800">
+        <div class="pip-track" id="pip-track-rent"></div>
+      </div>
     </div>
 
     <div class="slider-group">
@@ -928,8 +931,8 @@ input[type=range]::-moz-range-thumb {
         <div class="cell over-cell" id="rvb-t-rent-housing">—</div>
       </div>
       <div class="sum-row">
-        <div class="row-label">Monthly invested</div>
-        <div class="cell base-cell">—</div>
+        <div class="row-label">Monthly invested (yr 1)</div>
+        <div class="cell base-cell" id="rvb-t-buy-invested">—</div>
         <div class="cell over-cell" id="rvb-t-contrib">—</div>
       </div>
       <div class="sum-row">
@@ -945,6 +948,11 @@ input[type=range]::-moz-range-thumb {
       <div class="sum-row">
         <div class="row-label">Selling costs (6%)</div>
         <div class="cell base-cell" id="rvb-t-selling">—</div>
+        <div class="cell over-cell">—</div>
+      </div>
+      <div class="sum-row">
+        <div class="row-label">Invested housing savings <button class="info-btn" data-tip="rvb-savings">?</button></div>
+        <div class="cell base-cell" id="rvb-t-buy-savings">—</div>
         <div class="cell over-cell">—</div>
       </div>
       <div class="sum-row">
@@ -993,13 +1001,14 @@ const TIPS = {
   'income-slider': { title: 'Monthly Gross Income', body: 'Your total household income before taxes. This drives the DTI calculation. Raising income is the fastest way to improve DTI — a raise, a second income, or paid-off debt all shift this needle.' },
   dti: { title: 'Back-End DTI', body: 'Total monthly debt ÷ gross monthly income. Includes P&I + tax/insurance + HOA fees + other monthly debt. HOA is treated as a fixed housing obligation by Fannie Mae/Freddie Mac — lenders count it even though it\'s not a traditional debt.<br><br>Note: DTI <strong>excludes maintenance</strong> because lenders treat it as discretionary. The <strong>Housing burden</strong> figure just below adds your budgeted maintenance to show the fuller affordability picture — DTI is the lender\'s view, burden is yours.<br><br><strong style="color:#34c77b">Green &lt;36%:</strong> Comfortable<br><strong style="color:#f0a500">Amber 36–45%:</strong> Qualifying range<br><strong style="color:#e05c5c">Red &gt;45%:</strong> Likely disqualifying' },
   'housing-burden': { title: 'Total Housing Burden', body: 'Your true monthly housing load — the lender\'s DTI plus the maintenance you actually budget.<br><br>Formula: P&I + tax/insurance + HOA + maintenance + other debt, divided by gross income.<br><br>DTI omits maintenance because lenders treat it as discretionary; burden includes it because you can\'t responsibly own without it. Drag the Maintenance slider and watch this number respond — the "suggested" pip on that slider sets maintenance to 1% of value per year, offset by any HOA.<br><br>• <strong>Maintenance $0:</strong> burden equals DTI (lender\'s view)<br>• <strong>Maintenance set:</strong> burden shows the real affordability story<br><br>Note: setting both a high HOA and full maintenance can double-count exterior upkeep the HOA already covers — the suggested pip accounts for this.<br><br>Color thresholds match DTI: green &lt;36%, amber 36–45%, red &gt;45%.' },
-  'rvb-rent': { title: 'Monthly Rent', body: 'Current market rent for a comparable property. This is your starting rent — it increases annually at the rent increase rate. Providence/Pawtucket 2BR rents: ~$1,600–2,200/mo depending on neighborhood and condition.' },
+  'rvb-rent': { title: 'Monthly Rent', body: 'Current market rent for a comparable property. This is your starting rent — it increases annually at the rent increase rate. Providence/Pawtucket 2BR rents: ~$1,600–2,200/mo depending on neighborhood and condition.<br><br>Tap the <strong>= own cost</strong> pip below the slider to snap rent to the exact total monthly cost of owning (bypassing the $50 slider steps) — useful for a like-for-like "same monthly spend" comparison. Note: even when matched at year 1, rent and owning costs diverge over time, since your P&I is fixed while rent keeps inflating.' },
   'etf-return': { title: 'ETF Annual Return', body: 'Expected annual return on a diversified index fund.<br><br><strong>7% (conservative):</strong> Inflation-adjusted historical real return of the S&P 500 over long periods.<br><strong>10% (aggressive):</strong> Nominal historical average of the S&P 500. Does not account for taxes on dividends or capital gains.<br><br>Reality check: sequence of returns matters enormously over a 10-year horizon. A bad decade (2000–2010) returned ~0%. A good decade (2010–2020) returned ~14%.' },
-  'rvb-contribution': { title: 'Monthly Investment Contribution', body: 'The amount the renter invests each month in their ETF portfolio, on top of the down payment already invested.<br><br><strong>Auto (default):</strong> the full monthly cost of owning minus rent — every dollar the buyer sinks into P&I, tax, insurance, maintenance, and HOA that the renter doesn\'t pay gets invested instead. This keeps the comparison budget-neutral: both paths spend the same total each month, and the renter invests the surplus.<br><br>The surplus shifts over time: rent grows at the rent-increase rate, while owning costs grow too — P&I is fixed, but tax, insurance, maintenance, and HOA inflate at the appreciation rate. If owning ever costs less than rent in a given month, the contribution floors at $0.<br><br>Drag the slider to model a fixed savings rate instead, then tap <strong>↺ reset to auto</strong> below the slider to hand control back to the model.' },
+  'rvb-contribution': { title: 'Monthly Investment Contribution', body: 'The amount the renter invests each month in their ETF portfolio, on top of the down payment already invested.<br><br><strong>Auto (default):</strong> the full monthly cost of owning minus rent — every dollar the buyer sinks into P&I, tax, insurance, maintenance, and HOA that the renter doesn\'t pay gets invested instead. This keeps the comparison budget-neutral: both paths spend the same total each month, and the renter invests the surplus.<br><br>The surplus shifts over time: rent grows at the rent-increase rate, while owning costs grow too — P&I is fixed, but tax, insurance, maintenance, and HOA inflate at the appreciation rate. If owning ever costs less than rent in a given month, the renter\'s contribution floors at $0 — and the buyer invests the difference instead (see "Invested housing savings" in the table), keeping the comparison symmetric.<br><br>Drag the slider to model a fixed savings rate instead, then tap <strong>↺ reset to auto</strong> below the slider to hand control back to the model.' },
   'rvb-horizon': { title: 'Time Horizon', body: 'How many years you plan to hold the home (or compare the two paths). Break-even typically occurs somewhere between years 5–15 depending on appreciation, ETF returns, and rent growth. Shorter horizons usually favor renting; longer horizons favor buying.' },
   'rvb-crossover': { title: 'Break-Even Year', body: 'The first year in which buying produces more terminal wealth than renting+investing. Before this year, renting wins. After it, buying wins.<br><br>If "outside horizon" — buying never overtakes within your selected time frame. Try increasing appreciation rate or decreasing ETF return to see how sensitive the crossover is.' },
   'rvb-delta': { title: 'Monthly Cash Flow Delta', body: 'The full monthly cost of owning — P&I + tax + insurance + maintenance + HOA — minus current rent. A positive number means buying costs more per month than renting. That entire gap, if invested by the renter, is exactly what the auto contribution captures.' },
-  'rvb-chart': { title: 'Wealth Trajectory', body: 'Blue = net equity if you buy (home value − remaining loan − 6% selling costs). Amber = ETF portfolio value if you rent and invest.<br><br>Both lines start from the same point. The buyer starts with home equity minus selling costs; the renter starts with the down payment in their portfolio.<br><br>The green dashed line marks the break-even crossover year — where buying\'s wealth overtakes renting+investing.' }
+  'rvb-chart': { title: 'Wealth Trajectory', body: 'Blue = the buyer\'s net wealth: home equity (value − remaining loan − 6% selling costs) plus any housing savings they invest in months when owning is cheaper than renting. Amber = the renter\'s ETF portfolio (down payment plus the savings they invest in months when renting is cheaper).<br><br>Both start from the same point, and both invest their monthly housing surplus — whoever pays less that month puts the difference in the market. The green dashed line marks the break-even year where buying overtakes renting.' },
+  'rvb-savings': { title: 'Invested Housing Savings', body: 'This is the budget-neutral engine that keeps the comparison fair.<br><br>Each month, whichever path costs <strong>less</strong> for housing, that person invests the difference. When renting is cheaper, the renter\'s surplus grows their ETF portfolio (the amber side). When owning is cheaper, the buyer\'s surplus grows this side portfolio, which adds to buy-side wealth.<br><br>Without this, a scenario where owning is cheaper than renting would silently throw away the owner\'s monthly savings — making renting look far better than it is. This row shows the terminal value of the owner\'s invested savings.' }
 };
 
 // ── Tooltip logic ──
@@ -1591,28 +1600,38 @@ function buildRVBModel() {
   buyWealth.push(Math.round(initHomeVal - loan - initHomeVal * 0.06));
   rentWealth.push(Math.round(down));
 
-  // Build month-by-month rent+invest, sample yearly
-  let portfolio = down;
+  // Build month-by-month, sample yearly.
+  // Symmetric budget-neutral model: whichever path costs LESS for housing in a
+  // given month invests the difference. Renter surplus grows their ETF portfolio;
+  // owner surplus grows a side portfolio that adds to buy-side wealth.
+  const manual = contributionManual && S.contribution !== null;
+  let portfolio = down;   // renter's ETF portfolio (starts with the down payment)
+  let buyPort = 0;        // owner's invested housing savings
+  let ownerInvestedYr1 = 0, renterInvestedYr1 = 0;
   for (let m = 1; m <= horizonMonths; m++) {
     const yearsElapsed = (m - 1) / 12;
     const rentThisMonth = rent * Math.pow(1 + rentIncrease / 100, yearsElapsed);
     // P&I is fixed for the life of the loan; tax, insurance, maintenance, and HOA
     // inflate with the home's appreciation rate (tax and maintenance are value-linked).
     const ownCostThisMonth = pi + carryBase * Math.pow(1 + appr / 100, yearsElapsed);
-    const contrib = (contributionManual && S.contribution !== null)
-      ? S.contribution
-      : Math.max(0, ownCostThisMonth - rentThisMonth);
-    portfolio = portfolio * (1 + monthlyETF) + contrib;
+    // In auto mode, whoever pays less invests the difference. A manual override
+    // fixes the renter's contribution and drops the owner side portfolio.
+    const renterAdds = manual ? S.contribution : Math.max(0, ownCostThisMonth - rentThisMonth);
+    const ownerAdds  = manual ? 0             : Math.max(0, rentThisMonth - ownCostThisMonth);
+    if (m === 1) { renterInvestedYr1 = renterAdds; ownerInvestedYr1 = ownerAdds; }
+    portfolio = portfolio * (1 + monthlyETF) + renterAdds;
+    buyPort   = buyPort   * (1 + monthlyETF) + ownerAdds;
     if (m % 12 === 0) {
       const y = m / 12;
       labels.push('Yr ' + y);
       const homeVal = purchase * Math.pow(1 + appr / 100, y);
       const mi = Math.min(m - 1, base.months.length - 1);
       const balance = mi >= 0 ? base.months[mi].balance : 0;
-      buyWealth.push(Math.round(homeVal - balance - homeVal * 0.06));
+      buyWealth.push(Math.round(homeVal - balance - homeVal * 0.06 + buyPort));
       rentWealth.push(Math.round(portfolio));
     }
   }
+  const termBuyPort = buyPort;
 
   // Break-even: first year buy > rent+invest
   let crossoverYear = null;
@@ -1629,6 +1648,7 @@ function buildRVBModel() {
     labels, buyWealth, rentWealth, crossoverYear,
     piti, ownCost, pi, taxMo, rent, autoContrib, monthlyContrib,
     monthlyDelta: ownCost - rent,
+    termBuyPort, ownerInvestedYr1, renterInvestedYr1,
     termBuyWealth: buyWealth[horizon],
     termRentWealth: rentWealth[horizon],
     termHomeVal, termBalance, termSellingCosts,
@@ -1638,6 +1658,29 @@ function buildRVBModel() {
 }
 
 // ── RvB pip helpers ──
+function buildRentPip(ownCost) {
+  const track = document.getElementById('pip-track-rent');
+  if (!track) return;
+  track.innerHTML = '';
+  const sl = document.getElementById('sl-rent');
+  const min = parseFloat(sl.min);
+  let max = parseFloat(sl.max);
+  const target = Math.round(ownCost);
+  if (target < min) return;
+  if (target > max) { max = Math.ceil(target / 50) * 50; sl.max = max; }  // extend so the snap is reachable
+  const el = document.createElement('div');
+  el.className = 'pip';
+  el.style.left = pctToPos(target, min, max);
+  el.innerHTML = '<div class="pip-marker"></div><div class="pip-label">= own cost</div>';
+  el.addEventListener('click', () => {
+    S.rent = target;
+    sl.value = target;
+    document.getElementById('val-rent').textContent = fmtD(target) + '/mo';
+    updateRVB();
+  });
+  track.appendChild(el);
+}
+
 function buildETFPips() {
   const track = document.getElementById('pip-track-etf');
   if (!track) return;
@@ -1778,6 +1821,7 @@ function updateRVB() {
     S.contribution = rvb.autoContrib;
   }
   updateContribPip(rvb.autoContrib);
+  buildRentPip(rvb.ownCost);
 
   // Reset-to-auto button reflects current mode
   const autoBtn = document.getElementById('btn-contribution-auto');
@@ -1835,10 +1879,12 @@ function updateRVB() {
   document.getElementById('rvb-t-rent-capital').textContent = fmtD(S.down) + ' ETF';
   document.getElementById('rvb-t-buy-housing').textContent  = fmtD(rvb.ownCost) + '/mo';
   document.getElementById('rvb-t-rent-housing').textContent = fmtD(rvb.rent) + '/mo';
+  document.getElementById('rvb-t-buy-invested').textContent = rvb.ownerInvestedYr1 > 0 ? fmtD(rvb.ownerInvestedYr1) + '/mo' : '—';
   document.getElementById('rvb-t-contrib').textContent      = fmtD(rvb.monthlyContrib) + '/mo';
   document.getElementById('rvb-t-homeval').textContent      = fmtD(rvb.termHomeVal);
   document.getElementById('rvb-t-balance').textContent      = rvb.termBalance > 1 ? '−' + fmtD(rvb.termBalance) : '$0';
   document.getElementById('rvb-t-selling').textContent      = '−' + fmtD(rvb.termSellingCosts);
+  document.getElementById('rvb-t-buy-savings').textContent  = rvb.termBuyPort > 1 ? '+' + fmtD(rvb.termBuyPort) : '—';
   document.getElementById('rvb-t-portfolio').textContent    = fmtD(rvb.termPortfolio);
   document.getElementById('rvb-t-buy-total').textContent    = fmtD(rvb.termBuyWealth);
   document.getElementById('rvb-t-rent-total').textContent   = fmtD(rvb.termRentWealth);
