@@ -843,8 +843,9 @@ input[type=range]::-moz-range-thumb {
         <input type="range" class="overpay" id="sl-contribution" min="0" max="5000" step="50" value="0">
         <div class="pip-track" id="pip-track-contribution"></div>
       </div>
-      <div style="text-align:right;font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px">
-        auto (own cost − rent): <span id="val-contribution-auto">—</span>
+      <div style="display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:10px;margin-top:4px">
+        <button id="btn-contribution-auto" style="background:none;border:none;padding:0;font-family:var(--mono);font-size:10px;cursor:pointer;color:var(--amber);-webkit-tap-highlight-color:transparent">↺ reset to auto</button>
+        <span style="color:var(--muted)">own cost − rent: <span id="val-contribution-auto">—</span></span>
       </div>
     </div>
 
@@ -994,7 +995,7 @@ const TIPS = {
   'housing-burden': { title: 'Total Housing Burden', body: 'Your true monthly housing load — the lender\'s DTI plus the maintenance you actually budget.<br><br>Formula: P&I + tax/insurance + HOA + maintenance + other debt, divided by gross income.<br><br>DTI omits maintenance because lenders treat it as discretionary; burden includes it because you can\'t responsibly own without it. Drag the Maintenance slider and watch this number respond — the "suggested" pip on that slider sets maintenance to 1% of value per year, offset by any HOA.<br><br>• <strong>Maintenance $0:</strong> burden equals DTI (lender\'s view)<br>• <strong>Maintenance set:</strong> burden shows the real affordability story<br><br>Note: setting both a high HOA and full maintenance can double-count exterior upkeep the HOA already covers — the suggested pip accounts for this.<br><br>Color thresholds match DTI: green &lt;36%, amber 36–45%, red &gt;45%.' },
   'rvb-rent': { title: 'Monthly Rent', body: 'Current market rent for a comparable property. This is your starting rent — it increases annually at the rent increase rate. Providence/Pawtucket 2BR rents: ~$1,600–2,200/mo depending on neighborhood and condition.' },
   'etf-return': { title: 'ETF Annual Return', body: 'Expected annual return on a diversified index fund.<br><br><strong>7% (conservative):</strong> Inflation-adjusted historical real return of the S&P 500 over long periods.<br><strong>10% (aggressive):</strong> Nominal historical average of the S&P 500. Does not account for taxes on dividends or capital gains.<br><br>Reality check: sequence of returns matters enormously over a 10-year horizon. A bad decade (2000–2010) returned ~0%. A good decade (2010–2020) returned ~14%.' },
-  'rvb-contribution': { title: 'Monthly Investment Contribution', body: 'The amount the renter invests each month in their ETF portfolio, on top of the down payment already invested.<br><br><strong>Auto (default):</strong> the full monthly cost of owning minus rent — every dollar the buyer sinks into P&I, tax, insurance, maintenance, and HOA that the renter doesn\'t pay gets invested instead. This keeps the comparison budget-neutral: both paths spend the same total each month, and the renter invests the surplus. If owning costs less than rent, this defaults to $0.<br><br>You can override to model a fixed savings rate. Tap the "auto" pip to reset to the default.' },
+  'rvb-contribution': { title: 'Monthly Investment Contribution', body: 'The amount the renter invests each month in their ETF portfolio, on top of the down payment already invested.<br><br><strong>Auto (default):</strong> the full monthly cost of owning minus rent — every dollar the buyer sinks into P&I, tax, insurance, maintenance, and HOA that the renter doesn\'t pay gets invested instead. This keeps the comparison budget-neutral: both paths spend the same total each month, and the renter invests the surplus.<br><br>The surplus shifts over time: rent grows at the rent-increase rate, while owning costs grow too — P&I is fixed, but tax, insurance, maintenance, and HOA inflate at the appreciation rate. If owning ever costs less than rent in a given month, the contribution floors at $0.<br><br>Drag the slider to model a fixed savings rate instead, then tap <strong>↺ reset to auto</strong> below the slider to hand control back to the model.' },
   'rvb-horizon': { title: 'Time Horizon', body: 'How many years you plan to hold the home (or compare the two paths). Break-even typically occurs somewhere between years 5–15 depending on appreciation, ETF returns, and rent growth. Shorter horizons usually favor renting; longer horizons favor buying.' },
   'rvb-crossover': { title: 'Break-Even Year', body: 'The first year in which buying produces more terminal wealth than renting+investing. Before this year, renting wins. After it, buying wins.<br><br>If "outside horizon" — buying never overtakes within your selected time frame. Try increasing appreciation rate or decreasing ETF return to see how sensitive the crossover is.' },
   'rvb-delta': { title: 'Monthly Cash Flow Delta', body: 'The full monthly cost of owning — P&I + tax + insurance + maintenance + HOA — minus current rent. A positive number means buying costs more per month than renting. That entire gap, if invested by the renter, is exactly what the auto contribution captures.' },
@@ -1538,6 +1539,13 @@ document.getElementById('sl-contribution').addEventListener('input', () => {
   if (rvbChart) updateRVB();
 });
 
+// ── Reset-to-auto button ──
+document.getElementById('btn-contribution-auto').addEventListener('click', () => {
+  contributionManual = false;
+  S.contribution = null;
+  updateRVB();
+});
+
 // ── Mode switching ──
 function setMode(mode) {
   currentMode = mode;
@@ -1565,7 +1573,8 @@ function buildRVBModel() {
   const pi = base.basePI;
   const taxMo = purchase * proptax / 100 / 12;
   const piti = pi + taxMo + insurance;
-  const ownCost = piti + maint + hoa;   // full monthly cost of owning — matches the mortgage tab's "Total housing / mo"
+  const ownCost = piti + maint + hoa;   // year-1 full monthly cost of owning — matches the mortgage tab's "Total housing / mo"
+  const carryBase = taxMo + insurance + maint + hoa;   // non-P&I carrying costs; these inflate over time (P&I is fixed)
 
   const autoContrib = Math.max(0, ownCost - rent);
   const monthlyContrib = (contributionManual && S.contribution !== null) ? S.contribution : autoContrib;
@@ -1585,10 +1594,14 @@ function buildRVBModel() {
   // Build month-by-month rent+invest, sample yearly
   let portfolio = down;
   for (let m = 1; m <= horizonMonths; m++) {
-    const rentThisMonth = rent * Math.pow(1 + rentIncrease / 100, (m - 1) / 12);
+    const yearsElapsed = (m - 1) / 12;
+    const rentThisMonth = rent * Math.pow(1 + rentIncrease / 100, yearsElapsed);
+    // P&I is fixed for the life of the loan; tax, insurance, maintenance, and HOA
+    // inflate with the home's appreciation rate (tax and maintenance are value-linked).
+    const ownCostThisMonth = pi + carryBase * Math.pow(1 + appr / 100, yearsElapsed);
     const contrib = (contributionManual && S.contribution !== null)
       ? S.contribution
-      : Math.max(0, ownCost - rentThisMonth);
+      : Math.max(0, ownCostThisMonth - rentThisMonth);
     portfolio = portfolio * (1 + monthlyETF) + contrib;
     if (m % 12 === 0) {
       const y = m / 12;
@@ -1765,6 +1778,20 @@ function updateRVB() {
     S.contribution = rvb.autoContrib;
   }
   updateContribPip(rvb.autoContrib);
+
+  // Reset-to-auto button reflects current mode
+  const autoBtn = document.getElementById('btn-contribution-auto');
+  if (autoBtn) {
+    if (contributionManual) {
+      autoBtn.textContent = '↺ reset to auto';
+      autoBtn.style.color = 'var(--amber)';
+      autoBtn.style.cursor = 'pointer';
+    } else {
+      autoBtn.textContent = '✓ auto';
+      autoBtn.style.color = 'var(--green)';
+      autoBtn.style.cursor = 'default';
+    }
+  }
 
   // Loan summary
   const loanEl = document.getElementById('rvb-loan-summary');
